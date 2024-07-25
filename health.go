@@ -1,8 +1,12 @@
 package main
 
-import "net/http"
+import (
+	"log"
+	"net/http"
+)
 
-func (config *serverConfig) handlerGetHealth(writer http.ResponseWriter, req *http.Request) {
+func (config *serverConfig) handlerGetHealthz(writer http.ResponseWriter, req *http.Request) {
+	log.Println("enter handlerGetHealth")
 	response := struct {
 		Status string `json:"status"`
 	}{
