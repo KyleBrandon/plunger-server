@@ -1,0 +1,2 @@
+GET http://10.0.10.240:8080/v1/users
+Authorization: ApiKey 45bf851e7f1060265f4aa8570d505c220e0a8a38440d16e22868e78167bf7f9f

@@ -22,11 +22,12 @@ func main() {
 
 	config := loadConfig()
 	config.openDatabase()
-	// test()
+	test()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/healthz", config.handlerGetHealthz)
 	mux.HandleFunc("POST /v1/users", config.handlerCreateUser)
+	mux.HandleFunc("GET /v1/users", config.handlerGetUser)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.serverPort),

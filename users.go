@@ -7,9 +7,46 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/KyleBrandon/plunger-server/internal/auth"
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/google/uuid"
 )
+
+type UserResponse struct {
+	ID        string    `json:"id"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	ApiKey    string    `json:"api_key"`
+}
+
+func newUserResponse(user database.User) UserResponse {
+	return UserResponse{
+		ID:        user.ID.String(),
+		Email:     user.Email,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		ApiKey:    user.ApiKey,
+	}
+}
+
+func (config *serverConfig) handlerGetUser(writer http.ResponseWriter, req *http.Request) {
+	apiKey, err := auth.ParseApiKey(req)
+	if err != nil {
+		log.Printf("Could not parse the API key: %v\n", err)
+		respondWithError(writer, http.StatusForbidden, "not authorized")
+		return
+	}
+
+	user, err := config.DB.GetUserByApiKey(req.Context(), apiKey)
+	if err != nil {
+		log.Printf("Could not find user with API key: %v", err)
+		respondWithError(writer, http.StatusForbidden, "not authorized")
+		return
+	}
+
+	respondWithJSON(writer, http.StatusOK, newUserResponse(user))
+}
 
 func (config *serverConfig) handlerCreateUser(writer http.ResponseWriter, req *http.Request) {
 	params := struct {
@@ -40,17 +77,5 @@ func (config *serverConfig) handlerCreateUser(writer http.ResponseWriter, req *h
 		return
 	}
 
-	userResponse := struct {
-		ID        string    `json:"id"`
-		Email     string    `json:"email"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-	}{
-		ID:        user.ID.String(),
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-	}
-
-	respondWithJSON(writer, http.StatusCreated, userResponse)
+	respondWithJSON(writer, http.StatusCreated, newUserResponse(user))
 }
