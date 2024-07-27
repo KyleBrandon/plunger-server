@@ -40,7 +40,7 @@ func (config *serverConfig) handlerGetUser(writer http.ResponseWriter, req *http
 
 	user, err := config.DB.GetUserByApiKey(req.Context(), apiKey)
 	if err != nil {
-		log.Printf("Could not find user with API key: %v", err)
+		log.Printf("Could not find user with API key: %v\n", err)
 		respondWithError(writer, http.StatusForbidden, "not authorized")
 		return
 	}

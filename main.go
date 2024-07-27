@@ -5,62 +5,66 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
+const CONFIG_FILENAME string = "config.json"
+
 type serverConfig struct {
-	serverPort  string
-	databaseURL string
+	ServerPort  string
+	DatabaseURL string
+	Sensors     []SensorConfig
+	Devices     []DeviceConfig
 	DB          *database.Queries
 }
 
 func main() {
 
-	config := loadConfig()
-	config.openDatabase()
-	test()
+	config, err := initializeServerConfig()
+	if err != nil {
+		log.Fatal("failed to load config file")
+	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/healthz", config.handlerGetHealthz)
+	mux.HandleFunc("GET /v1/health", config.handlerGetHealth)
 	mux.HandleFunc("POST /v1/users", config.handlerCreateUser)
 	mux.HandleFunc("GET /v1/users", config.handlerGetUser)
+	mux.HandleFunc("GET /v1/temperatures", config.handlerGetTemperatures)
+	mux.HandleFunc("GET /v1/temperatures/{location}", config.handlerGetTemperatureByLocation)
 
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%s", config.serverPort),
+		Addr:    fmt.Sprintf(":%s", config.ServerPort),
 		Handler: mux,
 	}
 
-	fmt.Printf("Starting server on :%s\n", config.serverPort)
+	fmt.Printf("Starting server on :%s\n", config.ServerPort)
 	if err := server.ListenAndServe(); err != nil {
 		fmt.Printf("Server failed: %s\n", err)
 	}
 }
 
-func loadConfig() serverConfig {
-	godotenv.Load()
-	serverPort := os.Getenv("PORT")
-	if serverPort == "" {
-		log.Fatal("The PORT environment variable is not set")
+func initializeServerConfig() (serverConfig, error) {
+	configSettings, err := LoadConfigFile(CONFIG_FILENAME)
+	if err != nil {
+		log.Fatal("failed to load config file")
 	}
 
-	databaseURL := os.Getenv("DB_CONN")
-	if serverPort == "" {
-		log.Fatal("The DB_CONN environment variable is not set")
-	}
-	config := serverConfig{
-		serverPort:  serverPort,
-		databaseURL: databaseURL,
+	sc := serverConfig{
+		ServerPort:  configSettings.ServerPort,
+		DatabaseURL: configSettings.DatabaseURL,
+		Sensors:     configSettings.Sensors,
+		Devices:     configSettings.Devices,
 	}
 
-	return config
+	sc.openDatabase()
+
+	return sc, nil
 }
 
 func (config *serverConfig) openDatabase() {
-	db, err := sql.Open("postgres", config.databaseURL)
+	db, err := sql.Open("postgres", config.DatabaseURL)
 	if err != nil {
 		log.Fatal("failed to open database connection", err)
 	}

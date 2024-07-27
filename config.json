@@ -1,0 +1,49 @@
+{
+  "server_port": "8080",
+  "database_url": "postgres://postgres:postgres@10.0.4.40:5444/plunger?sslmode=disable",
+
+  "sensors": [
+    {
+      "driver_type": 0,
+      "sensor_type": 0,
+      "address": "28-0b2324d1b5ce",
+      "name": "Water",
+      "description": "Temperature of the water"
+    },
+    {
+      "driver_type": 0,
+      "sensor_type": 0,
+      "address": "28-3ce1d44380e3",
+      "name": "Room",
+      "description": "Temperature of the room"
+    },
+    {
+      "driver_type": 1,
+      "sensor_type": 1,
+      "address": "17",
+      "name": "Leak",
+      "description": "Detect if there is water present"
+    }
+  ],
+  "devices": [
+    {
+      "driver_type": 1,
+      "address": "22",
+      "name": "Pump",
+      "description": "Control pump on/off"
+    },
+
+    {
+      "driver_type": 1,
+      "address": "23",
+      "name": "Chiller",
+      "description": "Control chiller on/off"
+    },
+    {
+      "driver_type": 1,
+      "address": "24",
+      "name": "Ozone",
+      "description": "Control ozone on/off"
+    }
+  ]
+}
