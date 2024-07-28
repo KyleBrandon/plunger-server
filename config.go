@@ -4,42 +4,15 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+
+	"github.com/KyleBrandon/plunger-server/internal/sensor"
 )
 
 type Config struct {
-	ServerPort  string         `json:"server_port"`
-	DatabaseURL string         `json:"database_url"`
-	Sensors     []SensorConfig `json:"sensors"`
-	Devices     []DeviceConfig `json:"devices"`
-}
-
-type DriverType int
-
-const (
-	DS18B20 DriverType = iota // 1-wire
-	GPIO
-)
-
-type SensorType int
-
-const (
-	Temperature SensorType = iota
-	Leak
-)
-
-type SensorConfig struct {
-	DriverType  DriverType `json:"driver_type"`
-	SensorType  SensorType `json:"sensor_type"`
-	Address     string     `json:"address"`
-	Name        string     `json:"name"`
-	Description string     `json:"description"`
-}
-
-type DeviceConfig struct {
-	DriverType  DriverType `json:"driver_type"`
-	Address     string     `json:"address"`
-	Name        string     `json:"name"`
-	Description string     `json:"description"`
+	ServerPort           string                `json:"server_port"`
+	DatabaseURL          string                `json:"database_url"`
+	Devices              []sensor.DeviceConfig `json:"devices"`
+	SensorTimeoutSeconds int                   `json:"sensor_timeout_seconds"`
 }
 
 func LoadConfigFile(filename string) (Config, error) {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
+	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	_ "github.com/lib/pq"
 )
 
@@ -15,8 +16,7 @@ const CONFIG_FILENAME string = "config.json"
 type serverConfig struct {
 	ServerPort  string
 	DatabaseURL string
-	Sensors     []SensorConfig
-	Devices     []DeviceConfig
+	Sensors     sensor.SensorConfig
 	DB          *database.Queries
 }
 
@@ -32,7 +32,6 @@ func main() {
 	mux.HandleFunc("POST /v1/users", config.handlerCreateUser)
 	mux.HandleFunc("GET /v1/users", config.handlerGetUser)
 	mux.HandleFunc("GET /v1/temperatures", config.handlerGetTemperatures)
-	mux.HandleFunc("GET /v1/temperatures/{location}", config.handlerGetTemperatureByLocation)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),
@@ -51,11 +50,15 @@ func initializeServerConfig() (serverConfig, error) {
 		log.Fatal("failed to load config file")
 	}
 
+	sensorConfig, err := sensor.NewSensorConfig(configSettings.SensorTimeoutSeconds, configSettings.Devices)
+	if err != nil {
+		log.Fatal("failed to initailize sensors")
+	}
+
 	sc := serverConfig{
 		ServerPort:  configSettings.ServerPort,
 		DatabaseURL: configSettings.DatabaseURL,
-		Sensors:     configSettings.Sensors,
-		Devices:     configSettings.Devices,
+		Sensors:     sensorConfig,
 	}
 
 	sc.openDatabase()

@@ -4,52 +4,109 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/stianeikeland/go-rpio/v4"
 	"github.com/yryz/ds18b20"
 )
 
-type TemperatureReading struct {
-	Address      string  `json:"id"`
-	TemperatureC float64 `json:"temperature_c"`
-	TemperatureF float64 `json:"temperature_f"`
+const (
+	DRIVERTYPE_DS18B20 string = "DS18B20"
+	DRIVERTYPE_GPIO    string = "GPIO"
+)
+
+type SensorType int
+
+const (
+	SENSOR_TEMPERATURE string = "temperature"
+	SENSOR_LEAK        string = "leak"
+	SENSOR_POWER       string = "power"
+)
+
+type SensorConfig struct {
+	SensorTimeout      time.Duration
+	Devices            []DeviceConfig
+	TemperatureSensors map[string]DeviceConfig
 }
 
-func ReadTemperatures() ([]TemperatureReading, error) {
-	sensors, err := ds18b20.Sensors()
-	if err != nil {
-		panic(err)
+type DeviceConfig struct {
+	DriverType  string `json:"driver_type"`
+	SensorType  string `json:"sensor_type"`
+	Address     string `json:"address"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	NormallyOn  bool   `json:"normally_on,omitempty"`
+}
+
+type TemperatureReading struct {
+	Name         string  `json:"name,omitempty"`
+	Description  string  `json:"description,omitempty"`
+	Address      string  `json:"address,omitempty"`
+	TemperatureC float64 `json:"temperature_c,omitempty"`
+	TemperatureF float64 `json:"temperature_f,omitempty"`
+	Err          error   `json:"err,omitempty"`
+}
+
+func NewSensorConfig(sensorTimeout int, devices []DeviceConfig) (SensorConfig, error) {
+	sc := SensorConfig{
+		SensorTimeout: time.Duration(sensorTimeout) * time.Second,
+		Devices:       devices,
 	}
 
-	readings := make([]TemperatureReading, 0, len(sensors))
-
-	for _, sensor := range sensors {
-		t, err := ds18b20.Temperature(sensor)
-		if err != nil {
-			log.Printf("failed to read temperatures sensor: %v\n", err)
+	sc.TemperatureSensors = make(map[string]DeviceConfig)
+	for _, d := range sc.Devices {
+		if d.SensorType != SENSOR_TEMPERATURE || d.DriverType != DRIVERTYPE_DS18B20 {
 			continue
 		}
 
-		tr := TemperatureReading{
-			Address:      sensor,
-			TemperatureC: t,
-			TemperatureF: (t * 9 / 5) + 32,
-		}
-
-		readings = append(readings, tr)
+		sc.TemperatureSensors[d.Address] = d
 	}
 
-	// readLeakSensor()
+	return sc, nil
+}
 
-	// turnPumpOff()
-	// time.Sleep(10 * time.Second)
-	// turnPumpOn()
-	//
-	// turnOzoneOn()
-	// time.Sleep(10 * time.Second)
-	// turnOzoneOff()
-	return readings, nil
+func readTemperatureSensor(device *DeviceConfig, wg *sync.WaitGroup, readings chan<- TemperatureReading) {
+	defer wg.Done()
+
+	t, err := ds18b20.Temperature(device.Address)
+
+	tr := TemperatureReading{
+		Name:         device.Name,
+		Description:  device.Description,
+		Address:      device.Address,
+		TemperatureC: t,
+		TemperatureF: (t * 9 / 5) + 32,
+		Err:          err,
+	}
+
+	readings <- tr
+}
+
+func (config *SensorConfig) ReadTemperatures() ([]TemperatureReading, error) {
+
+	var wg sync.WaitGroup
+	wg.Add(len(config.TemperatureSensors))
+	readings := make(chan TemperatureReading, len(config.TemperatureSensors))
+
+	for _, device := range config.TemperatureSensors {
+		go readTemperatureSensor(&device, &wg, readings)
+	}
+
+	wg.Wait()
+	close(readings)
+
+	var err error = nil
+	results := make([]TemperatureReading, 0, len(readings))
+	for reading := range readings {
+		if reading.Err != nil {
+			log.Printf("failed to read sensor (%v): %v\n", reading.Address, reading.Err)
+			err = reading.Err
+		}
+		results = append(results, reading)
+	}
+
+	return results, err
 }
 
 func readLeakSensor() {
@@ -144,7 +201,7 @@ func readPowerRelays() {
 	pin.Output()
 	fmt.Println("toggle outlet 1 on")
 	pin.High()
-	time.Sleep(time.Second)
+	time.Sleep(5 * time.Second)
 	fmt.Println("toggle outlet 1 off")
 	pin.Low()
 
