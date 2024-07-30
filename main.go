@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
+	"github.com/KyleBrandon/plunger-server/internal/jobs"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	_ "github.com/lib/pq"
 )
@@ -18,6 +19,7 @@ type serverConfig struct {
 	DatabaseURL string
 	Sensors     sensor.SensorConfig
 	DB          *database.Queries
+	JobManager  *jobs.JobConfig
 }
 
 func main() {
@@ -34,7 +36,7 @@ func main() {
 	mux.HandleFunc("GET /v1/temperatures", config.handlerGetTemperatures)
 	mux.HandleFunc("GET /v1/ozone", config.handlerGetOzone)
 	mux.HandleFunc("POST /v1/ozone/start", config.handlerStartOzone)
-	mux.HandleFunc("POST /v1/ozone/stop/{JOBID}", config.handlerStopOzone)
+	mux.HandleFunc("POST /v1/ozone/stop", config.handlerStopOzone)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),
@@ -63,6 +65,8 @@ func initializeServerConfig() (serverConfig, error) {
 		DatabaseURL: configSettings.DatabaseURL,
 		Sensors:     sensorConfig,
 	}
+
+	sc.JobManager = jobs.NewJobConfig(sc.DB)
 
 	sc.openDatabase()
 

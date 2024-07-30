@@ -92,6 +92,44 @@ func (q *Queries) GetJobById(ctx context.Context, id uuid.UUID) (Job, error) {
 	return i, err
 }
 
+const getRunningJobsByType = `-- name: GetRunningJobsByType :many
+SELECT id, created_at, updated_at, job_type, status, start_time, end_time, result, cancel_requested FROM jobs 
+WHERE job_type = $1 AND status = 1
+`
+
+func (q *Queries) GetRunningJobsByType(ctx context.Context, jobType int32) ([]Job, error) {
+	rows, err := q.db.QueryContext(ctx, getRunningJobsByType, jobType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Job
+	for rows.Next() {
+		var i Job
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.JobType,
+			&i.Status,
+			&i.StartTime,
+			&i.EndTime,
+			&i.Result,
+			&i.CancelRequested,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateCancelRequested = `-- name: UpdateCancelRequested :one
 UPDATE jobs SET cancel_requested = $1 WHERE id = $2
 RETURNING id, created_at, updated_at, job_type, status, start_time, end_time, result, cancel_requested

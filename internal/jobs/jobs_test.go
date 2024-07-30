@@ -2,7 +2,6 @@ package jobs
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log"
 	"testing"
@@ -43,6 +42,14 @@ func (store *jobStore) GetJobById(ctx context.Context, id uuid.UUID) (database.J
 	return database.Job{}, errors.New("job not found")
 }
 
+func (store *jobStore) GetRunningJobsByType(ctx context.Context, jobType int32) ([]database.Job, error) {
+	if store.Job.JobType == jobType {
+		return []database.Job{store.Job}, nil
+	}
+
+	return nil, errors.New("job not found")
+}
+
 func (store *jobStore) UpdateCancelRequested(ctx context.Context, arg database.UpdateCancelRequestedParams) (database.Job, error) {
 	if store.Job.ID == arg.ID {
 		store.Job.CancelRequested = arg.CancelRequested
@@ -68,8 +75,8 @@ func TestCreateJobTimesOut(t *testing.T) {
 		Job: database.Job{},
 	}
 
-	jobConfig := NewJobConfig(&jobStore, JOBTYPE_OZONE_TIMER)
-	jobId, err := jobConfig.StartJob(testTimedJob, 500*time.Millisecond)
+	jobConfig := NewJobConfig(&jobStore)
+	jobId, err := jobConfig.StartJob(testTimedJob, JOBTYPE_OZONE_TIMER, 500*time.Millisecond)
 	if err != nil {
 		t.Errorf("failed to start job: %v\n", err)
 		return
@@ -90,8 +97,8 @@ func TestCreateJobWithCancel(t *testing.T) {
 		Job: database.Job{},
 	}
 
-	jobConfig := NewJobConfig(&jobStore, JOBTYPE_OZONE_TIMER)
-	jobId, err := jobConfig.StartJob(testTimedJob, 5*time.Second)
+	jobConfig := NewJobConfig(&jobStore)
+	jobId, err := jobConfig.StartJob(testTimedJob, JOBTYPE_OZONE_TIMER, 5*time.Second)
 	if err != nil {
 		t.Errorf("failed to start job: %v\n", err)
 		return
@@ -99,7 +106,7 @@ func TestCreateJobWithCancel(t *testing.T) {
 
 	time.Sleep(500 * time.Millisecond)
 
-	jobConfig.StopJob(jobId)
+	jobConfig.CancelJob(JOBTYPE_OZONE_TIMER)
 
 	time.Sleep(500 * time.Millisecond)
 
@@ -121,25 +128,11 @@ func testTimedJob(config *JobConfig, ctx context.Context, cancel context.CancelF
 		select {
 		case <-ctx.Done():
 
-			resultString := "Success"
 			if canceled {
-				resultString = "Canceled"
+				config.StopJob(JOBTYPE_OZONE_TIMER, "Canceled")
+			} else {
+				config.StopJob(JOBTYPE_OZONE_TIMER, "Success")
 			}
-
-			// task was canceled or timed out
-			result := sql.NullString{
-				String: resultString,
-				Valid:  true,
-			}
-
-			// Update the database to indicate the job was canceled/stopped
-			params := database.UpdateJobParams{
-				ID:      jobId,
-				Status:  JOBSTATUS_STOPPED,
-				EndTime: time.Now(),
-				Result:  result,
-			}
-			config.DB.UpdateJob(ctx, params)
 			return
 
 		case <-time.After(500 * time.Millisecond):

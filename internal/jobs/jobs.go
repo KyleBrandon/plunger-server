@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
-	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/google/uuid"
 )
 
@@ -16,47 +16,76 @@ const (
 )
 
 const (
-	JOBSTATUS_STARTED = 1
-	JOBSTATUS_STOPPED = 2
+	JOBSTATUS_STARTED  = 1
+	JOBSTATUS_STOPPED  = 2
+	JOBSTATUS_ORPHANED = 3
 )
 
+// Create an interface for the storage methods used to manage job state.  This helps for testing.
 type JobStore interface {
 	CreateJob(ctx context.Context, arg database.CreateJobParams) (database.Job, error)
 	GetCancelRequested(ctx context.Context, id uuid.UUID) (bool, error)
 	GetJobById(ctx context.Context, id uuid.UUID) (database.Job, error)
+	GetRunningJobsByType(ctx context.Context, jobType int32) ([]database.Job, error)
 	UpdateCancelRequested(ctx context.Context, arg database.UpdateCancelRequestedParams) (database.Job, error)
 	UpdateJob(ctx context.Context, arg database.UpdateJobParams) (database.Job, error)
 }
 
+// Function signature used to define a job to run
 type JobFunc func(*JobConfig, context.Context, context.CancelFunc, uuid.UUID)
 
+// Configuration used to manage the job runner state
 type JobConfig struct {
-	JobType int32
-	DB      JobStore
+	mux *sync.Mutex
+	DB  JobStore
 }
 
-func NewJobConfig(DB JobStore, jobType int32) *JobConfig {
+func NewJobConfig(DB JobStore) *JobConfig {
 
 	return &JobConfig{
-		JobType: jobType,
-		DB:      DB,
+		DB:  DB,
+		mux: &sync.Mutex{},
 	}
 }
 
-func (config *JobConfig) StartJob(execute JobFunc, timeoutPeriod time.Duration) (uuid.UUID, error) {
-	jobId := uuid.New()
+func (config *JobConfig) GetJob(jobType int32) (database.Job, error) {
+
+	ctx := context.Background()
+
+	ozoneJobs, err := config.DB.GetRunningJobsByType(ctx, jobType)
+	if err != nil {
+		return database.Job{}, err
+	}
+
+	if len(ozoneJobs) > 1 {
+		log.Printf("There should only be one running ozone job, found: %v\n", len(ozoneJobs))
+	}
+
+	//TODO: Should we return the most recent?
+	return ozoneJobs[0], nil
+}
+
+func (config *JobConfig) StartJob(execute JobFunc, jobType int32, timeoutPeriod time.Duration) (uuid.UUID, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx, cancel = context.WithTimeout(ctx, timeoutPeriod)
 
+	config.mux.Lock()
+	defer config.mux.Unlock()
+
+	config.ensureOnlyOneJob(ctx, jobType)
+
+	jobId := uuid.New()
 	params := database.CreateJobParams{
 		ID:        jobId,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		JobType:   config.JobType,
+		JobType:   jobType,
 		Status:    JOBSTATUS_STARTED,
 		StartTime: time.Now(),
 	}
+
+	params.EndTime = params.StartTime.Add(timeoutPeriod)
 
 	_, err := config.DB.CreateJob(ctx, params)
 	if err != nil {
@@ -69,14 +98,20 @@ func (config *JobConfig) StartJob(execute JobFunc, timeoutPeriod time.Duration) 
 	return jobId, nil
 }
 
-func (config *JobConfig) StopJob(jobId uuid.UUID) error {
+func (config *JobConfig) CancelJob(jobType int32) error {
 	ctx := context.Background()
+
+	job, err := config.GetJob(jobType)
+	if err != nil {
+		return err
+	}
+
 	params := database.UpdateCancelRequestedParams{
-		ID:              jobId,
+		ID:              job.ID,
 		CancelRequested: true,
 	}
 
-	_, err := config.DB.UpdateCancelRequested(ctx, params)
+	_, err = config.DB.UpdateCancelRequested(ctx, params)
 	if err != nil {
 		return err
 	}
@@ -84,44 +119,28 @@ func (config *JobConfig) StopJob(jobId uuid.UUID) error {
 	return nil
 }
 
-func RunOzoneFunc(config *JobConfig, ctx context.Context, cancel context.CancelFunc, jobId uuid.UUID) {
-	defer cancel()
-
-	sensor.TurnOzoneOn()
-
-	for {
-		select {
-
-		case <-ctx.Done():
-			// task was canceled or timedout
-			sensor.TurnOzoneOff()
-
-			result := sql.NullString{
-				String: "Success",
-				Valid:  true,
-			}
-
-			// Update the database to indicate the job was canceled/stopped
-			params := database.UpdateJobParams{
-				ID:      jobId,
-				Status:  JOBSTATUS_STOPPED,
-				EndTime: time.Now(),
-				Result:  result,
-			}
-			config.DB.UpdateJob(ctx, params)
-			return
-
-		case <-time.After(5 * time.Second):
-			// check to see if the task was canceled by the user
-			cancelRequested := config.IsJobCanceled(jobId)
-			if cancelRequested {
-				cancel()
-				continue
-			}
-
-		}
+func (config *JobConfig) StopJob(jobType int32, result string) error {
+	ctx := context.Background()
+	job, err := config.GetJob(jobType)
+	if err != nil {
+		return err
 	}
 
+	sqlString := sql.NullString{
+		String: result,
+		Valid:  true,
+	}
+
+	// Update the database to indicate the job was canceled/stopped
+	params := database.UpdateJobParams{
+		ID:      job.ID,
+		Status:  JOBSTATUS_STOPPED,
+		EndTime: time.Now(),
+		Result:  sqlString,
+	}
+	config.DB.UpdateJob(ctx, params)
+
+	return nil
 }
 
 func (config *JobConfig) IsJobCanceled(jobId uuid.UUID) bool {
@@ -135,4 +154,29 @@ func (config *JobConfig) IsJobCanceled(jobId uuid.UUID) bool {
 	}
 
 	return job.CancelRequested
+}
+
+func (config *JobConfig) ensureOnlyOneJob(context context.Context, jobType int32) {
+	currentJobs, err := config.DB.GetRunningJobsByType(context, jobType)
+	if err != nil {
+		log.Printf("failed to find any existing running jobs of type %v: %v\n", jobType, err)
+		return
+	}
+
+	if len(currentJobs) > 0 {
+		log.Printf("Found %v existing jobs of type %v\n", len(currentJobs), jobType)
+		result := sql.NullString{
+			String: "Canceled",
+			Valid:  true,
+		}
+		for _, j := range currentJobs {
+			jp := database.UpdateJobParams{
+				ID:      j.ID,
+				Status:  JOBSTATUS_ORPHANED,
+				EndTime: time.Now(),
+				Result:  result,
+			}
+			config.DB.UpdateJob(context, jp)
+		}
+	}
 }

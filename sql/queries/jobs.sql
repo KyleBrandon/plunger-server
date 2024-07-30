@@ -21,3 +21,7 @@ SELECT cancel_requested FROM jobs WHERE id = $1;
 UPDATE jobs SET cancel_requested = $1 WHERE id = $2
 RETURNING *;
 
+-- name: GetRunningJobsByType :many
+SELECT * FROM jobs 
+WHERE job_type = $1 AND status = 1;
+
