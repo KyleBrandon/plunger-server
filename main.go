@@ -32,6 +32,9 @@ func main() {
 	mux.HandleFunc("POST /v1/users", config.handlerCreateUser)
 	mux.HandleFunc("GET /v1/users", config.handlerGetUser)
 	mux.HandleFunc("GET /v1/temperatures", config.handlerGetTemperatures)
+	mux.HandleFunc("GET /v1/ozone", config.handlerGetOzone)
+	mux.HandleFunc("POST /v1/ozone/start", config.handlerStartOzone)
+	mux.HandleFunc("POST /v1/ozone/stop/{JOBID}", config.handlerStopOzone)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),
@@ -47,7 +50,7 @@ func main() {
 func initializeServerConfig() (serverConfig, error) {
 	configSettings, err := LoadConfigFile(CONFIG_FILENAME)
 	if err != nil {
-		log.Fatal("failed to load config file")
+		log.Fatalf("failed to load config file: %v\n", err)
 	}
 
 	sensorConfig, err := sensor.NewSensorConfig(configSettings.SensorTimeoutSeconds, configSettings.Devices)

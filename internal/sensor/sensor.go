@@ -160,11 +160,10 @@ func turnPumpOff() {
 	pin.High()
 }
 
-func turnOzoneOn() {
+func TurnOzoneOn() error {
 	log.Println("turn ozone on")
 	if err := rpio.Open(); err != nil {
-		fmt.Println(err)
-		os.Exit(0)
+		return err
 	}
 
 	defer rpio.Close()
@@ -173,13 +172,13 @@ func turnOzoneOn() {
 	pin.Output()
 	pin.High()
 
+	return nil
 }
 
-func turnOzoneOff() {
+func TurnOzoneOff() error {
 	log.Println("turn ozone off")
 	if err := rpio.Open(); err != nil {
-		fmt.Println(err)
-		os.Exit(0)
+		return err
 	}
 
 	defer rpio.Close()
@@ -187,6 +186,8 @@ func turnOzoneOff() {
 	pin := rpio.Pin(24)
 	pin.Output()
 	pin.Low()
+
+	return nil
 }
 
 func readPowerRelays() {
