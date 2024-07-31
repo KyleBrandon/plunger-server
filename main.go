@@ -35,6 +35,7 @@ func main() {
 	mux.HandleFunc("GET /v1/users", config.handlerGetUser)
 	mux.HandleFunc("GET /v1/temperatures", config.handlerGetTemperatures)
 	mux.HandleFunc("GET /v1/ozone", config.handlerGetOzone)
+	mux.HandleFunc("GET /v1/ozone/{JOBID}", config.handlerGetOzone)
 	mux.HandleFunc("POST /v1/ozone/start", config.handlerStartOzone)
 	mux.HandleFunc("POST /v1/ozone/stop", config.handlerStopOzone)
 
@@ -66,9 +67,8 @@ func initializeServerConfig() (serverConfig, error) {
 		Sensors:     sensorConfig,
 	}
 
-	sc.JobManager = jobs.NewJobConfig(sc.DB)
-
 	sc.openDatabase()
+	sc.JobManager = jobs.NewJobConfig(sc.DB)
 
 	return sc, nil
 }

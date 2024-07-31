@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log"
 	"sync"
 	"time"
@@ -48,24 +49,30 @@ func NewJobConfig(DB JobStore) *JobConfig {
 	}
 }
 
-func (config *JobConfig) GetJob(jobType int32) (database.Job, error) {
+var ErrJobNotFound = errors.New("job was not found")
+
+func (config *JobConfig) GetRunningJob(jobType int32) (*database.Job, error) {
 
 	ctx := context.Background()
 
 	ozoneJobs, err := config.DB.GetRunningJobsByType(ctx, jobType)
 	if err != nil {
-		return database.Job{}, err
+		return nil, err
+	}
+
+	if len(ozoneJobs) == 0 {
+		log.Printf("no ozone jobs are currently running")
+		return nil, ErrJobNotFound
 	}
 
 	if len(ozoneJobs) > 1 {
-		log.Printf("There should only be one running ozone job, found: %v\n", len(ozoneJobs))
+		log.Printf("there should only be one running ozone job, found: %v\n", len(ozoneJobs))
 	}
 
-	//TODO: Should we return the most recent?
-	return ozoneJobs[0], nil
+	return &ozoneJobs[0], nil
 }
 
-func (config *JobConfig) StartJob(execute JobFunc, jobType int32, timeoutPeriod time.Duration) (uuid.UUID, error) {
+func (config *JobConfig) StartJob(execute JobFunc, jobType int32, timeoutPeriod time.Duration) (*database.Job, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx, cancel = context.WithTimeout(ctx, timeoutPeriod)
@@ -73,35 +80,35 @@ func (config *JobConfig) StartJob(execute JobFunc, jobType int32, timeoutPeriod 
 	config.mux.Lock()
 	defer config.mux.Unlock()
 
-	config.ensureOnlyOneJob(ctx, jobType)
+	config.ensureOnlyOneJob(context.Background(), jobType)
 
 	jobId := uuid.New()
 	params := database.CreateJobParams{
 		ID:        jobId,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 		JobType:   jobType,
 		Status:    JOBSTATUS_STARTED,
-		StartTime: time.Now(),
+		StartTime: time.Now().UTC(),
 	}
 
 	params.EndTime = params.StartTime.Add(timeoutPeriod)
 
-	_, err := config.DB.CreateJob(ctx, params)
+	job, err := config.DB.CreateJob(ctx, params)
 	if err != nil {
 		cancel()
-		return uuid.Nil, err
+		return nil, err
 	}
 
 	go execute(config, ctx, cancel, jobId)
 
-	return jobId, nil
+	return &job, nil
 }
 
 func (config *JobConfig) CancelJob(jobType int32) error {
 	ctx := context.Background()
 
-	job, err := config.GetJob(jobType)
+	job, err := config.GetRunningJob(jobType)
 	if err != nil {
 		return err
 	}
@@ -121,7 +128,7 @@ func (config *JobConfig) CancelJob(jobType int32) error {
 
 func (config *JobConfig) StopJob(jobType int32, result string) error {
 	ctx := context.Background()
-	job, err := config.GetJob(jobType)
+	job, err := config.GetRunningJob(jobType)
 	if err != nil {
 		return err
 	}
@@ -135,7 +142,7 @@ func (config *JobConfig) StopJob(jobType int32, result string) error {
 	params := database.UpdateJobParams{
 		ID:      job.ID,
 		Status:  JOBSTATUS_STOPPED,
-		EndTime: time.Now(),
+		EndTime: time.Now().UTC(),
 		Result:  sqlString,
 	}
 	config.DB.UpdateJob(ctx, params)
@@ -148,8 +155,7 @@ func (config *JobConfig) IsJobCanceled(jobId uuid.UUID) bool {
 	ctx := context.Background()
 	job, err := config.DB.GetJobById(ctx, jobId)
 	if err != nil {
-		log.Println("failed to query the job")
-
+		log.Printf("failed to find the job %v: %v\n", jobId, err)
 		return false
 	}
 
@@ -173,7 +179,7 @@ func (config *JobConfig) ensureOnlyOneJob(context context.Context, jobType int32
 			jp := database.UpdateJobParams{
 				ID:      j.ID,
 				Status:  JOBSTATUS_ORPHANED,
-				EndTime: time.Now(),
+				EndTime: time.Now().UTC(),
 				Result:  result,
 			}
 			config.DB.UpdateJob(context, jp)

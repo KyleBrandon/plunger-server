@@ -76,7 +76,7 @@ func TestCreateJobTimesOut(t *testing.T) {
 	}
 
 	jobConfig := NewJobConfig(&jobStore)
-	jobId, err := jobConfig.StartJob(testTimedJob, JOBTYPE_OZONE_TIMER, 500*time.Millisecond)
+	job, err := jobConfig.StartJob(testTimedJob, JOBTYPE_OZONE_TIMER, 500*time.Millisecond)
 	if err != nil {
 		t.Errorf("failed to start job: %v\n", err)
 		return
@@ -85,9 +85,9 @@ func TestCreateJobTimesOut(t *testing.T) {
 	// wait for job to complete
 	time.Sleep(1 * time.Second)
 
-	job, _ := jobStore.GetJobById(context.Background(), jobId)
-	if !job.Result.Valid || job.Result.String != "Success" {
-		t.Errorf("job result should be valid and 'Success', found: (%v, %v)\n", job.Result.Valid, job.Result.String)
+	dbJob, _ := jobStore.GetJobById(context.Background(), job.ID)
+	if !dbJob.Result.Valid || dbJob.Result.String != "Success" {
+		t.Errorf("job result should be valid and 'Success', found: (%v, %v)\n", dbJob.Result.Valid, dbJob.Result.String)
 		return
 	}
 }
@@ -98,7 +98,7 @@ func TestCreateJobWithCancel(t *testing.T) {
 	}
 
 	jobConfig := NewJobConfig(&jobStore)
-	jobId, err := jobConfig.StartJob(testTimedJob, JOBTYPE_OZONE_TIMER, 5*time.Second)
+	job, err := jobConfig.StartJob(testTimedJob, JOBTYPE_OZONE_TIMER, 5*time.Second)
 	if err != nil {
 		t.Errorf("failed to start job: %v\n", err)
 		return
@@ -110,9 +110,9 @@ func TestCreateJobWithCancel(t *testing.T) {
 
 	time.Sleep(500 * time.Millisecond)
 
-	job, _ := jobStore.GetJobById(context.Background(), jobId)
-	if !job.Result.Valid || job.Result.String != "Canceled" {
-		t.Errorf("job result should be valid and 'Canceled', found: (%v, %v)\n", job.Result.Valid, job.Result.String)
+	dbJob, _ := jobStore.GetJobById(context.Background(), job.ID)
+	if !dbJob.Result.Valid || dbJob.Result.String != "Canceled" {
+		t.Errorf("job result should be valid and 'Canceled', found: (%v, %v)\n", dbJob.Result.Valid, dbJob.Result.String)
 		return
 	}
 }
