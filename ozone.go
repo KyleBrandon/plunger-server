@@ -53,7 +53,7 @@ func (config *serverConfig) getJobById(jobId uuid.UUID) (*database.Job, error) {
 	return &job, err
 }
 
-func (config *serverConfig) handlerGetOzoneStatus(w http.ResponseWriter, r *http.Request) {
+func (config *serverConfig) handlerOzoneGet(w http.ResponseWriter, r *http.Request) {
 	log.Println("handlerGetOzone")
 
 	job, err := config.DB.GetLatestJobByType(r.Context(), jobs.JOBTYPE_OZONE_TIMER)
@@ -66,7 +66,7 @@ func (config *serverConfig) handlerGetOzoneStatus(w http.ResponseWriter, r *http
 	respondWithJSON(w, http.StatusOK, response)
 }
 
-func (config *serverConfig) handlerStartOzone(writer http.ResponseWriter, req *http.Request) {
+func (config *serverConfig) handlerOzoneStart(writer http.ResponseWriter, req *http.Request) {
 	log.Println("handlerStartOzone")
 
 	job, err := config.JobManager.StartJobWithTimeout(runOzoneFunc, jobs.JOBTYPE_OZONE_TIMER, 2*time.Hour)
@@ -79,7 +79,7 @@ func (config *serverConfig) handlerStartOzone(writer http.ResponseWriter, req *h
 	respondWithJSON(writer, http.StatusCreated, response)
 }
 
-func (config *serverConfig) handlerStopOzone(writer http.ResponseWriter, req *http.Request) {
+func (config *serverConfig) handlerOzoneStop(writer http.ResponseWriter, req *http.Request) {
 	log.Println("handlerStopOzone")
 
 	err := config.JobManager.CancelJob(jobs.JOBTYPE_OZONE_TIMER)

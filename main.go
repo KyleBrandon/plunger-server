@@ -34,14 +34,14 @@ func main() {
 	config.StartMonitoringLeaks()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/health", config.handlerGetHealth)
-	mux.HandleFunc("POST /v1/users", config.handlerCreateUser)
-	mux.HandleFunc("GET /v1/users", config.handlerGetUser)
-	mux.HandleFunc("GET /v1/temperatures", config.handlerGetTemperatures)
-	mux.HandleFunc("GET /v1/ozone", config.handlerGetOzoneStatus)
-	mux.HandleFunc("POST /v1/ozone/start", config.handlerStartOzone)
-	mux.HandleFunc("POST /v1/ozone/stop", config.handlerStopOzone)
-	mux.HandleFunc("GET /v1/leaks", config.handlerGetLeak)
+	mux.HandleFunc("GET /v1/health", config.handlerHealthGet)
+	mux.HandleFunc("POST /v1/users", config.handlerUserCreate)
+	mux.HandleFunc("GET /v1/users", config.handlerUserGet)
+	mux.HandleFunc("GET /v1/temperatures", config.handlerTemperaturesGet)
+	mux.HandleFunc("GET /v1/ozone", config.handlerOzoneGet)
+	mux.HandleFunc("POST /v1/ozone/start", config.handlerOzoneStart)
+	mux.HandleFunc("POST /v1/ozone/stop", config.handlerOzoneStop)
+	mux.HandleFunc("GET /v1/leaks", config.handlerLeakGet)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),

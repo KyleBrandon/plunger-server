@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-func (config *serverConfig) handlerGetHealth(writer http.ResponseWriter, req *http.Request) {
+func (config *serverConfig) handlerHealthGet(writer http.ResponseWriter, req *http.Request) {
 	log.Println("enter handlerGetHealth")
 	response := struct {
 		Status string `json:"status"`

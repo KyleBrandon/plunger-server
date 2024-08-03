@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-func (config *serverConfig) handlerGetTemperatures(w http.ResponseWriter, r *http.Request) {
+func (config *serverConfig) handlerTemperaturesGet(w http.ResponseWriter, r *http.Request) {
 	log.Println("enter handlerGetTemperatureByLocation")
 
 	results, err := config.Sensors.ReadTemperatures()

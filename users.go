@@ -30,7 +30,7 @@ func newUserResponse(user database.User) UserResponse {
 	}
 }
 
-func (config *serverConfig) handlerGetUser(writer http.ResponseWriter, req *http.Request) {
+func (config *serverConfig) handlerUserGet(writer http.ResponseWriter, req *http.Request) {
 	apiKey, err := auth.ParseApiKey(req)
 	if err != nil {
 		log.Printf("Could not parse the API key: %v\n", err)
@@ -48,7 +48,7 @@ func (config *serverConfig) handlerGetUser(writer http.ResponseWriter, req *http
 	respondWithJSON(writer, http.StatusOK, newUserResponse(user))
 }
 
-func (config *serverConfig) handlerCreateUser(writer http.ResponseWriter, req *http.Request) {
+func (config *serverConfig) handlerUserCreate(writer http.ResponseWriter, req *http.Request) {
 	params := struct {
 		Email string `json:"email"`
 	}{}

@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (config *serverConfig) handlerGetLeak(w http.ResponseWriter, r *http.Request) {
+func (config *serverConfig) handlerLeakGet(w http.ResponseWriter, r *http.Request) {
 	log.Println("handlerGetLeak")
 
 	leakEvents := make([]database.Event, 0)
