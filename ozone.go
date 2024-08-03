@@ -8,7 +8,6 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
-	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/google/uuid"
 )
 
@@ -31,8 +30,8 @@ func mapFromDB(dbJob *database.Job) OzoneJob {
 		timeLeft = dbJob.EndTime.Sub(time.Now().UTC()).Seconds()
 	} else {
 		status = "Stopped"
+		timeLeft = 0.0
 	}
-	timeLeft = 0.0
 
 	oj := OzoneJob{
 		ID:              dbJob.ID,
@@ -89,7 +88,7 @@ func (config *serverConfig) handlerGetOzone(writer http.ResponseWriter, req *htt
 func (config *serverConfig) handlerStartOzone(writer http.ResponseWriter, req *http.Request) {
 	log.Println("handlerStartOzone")
 
-	job, err := config.JobManager.StartJob(runOzoneFunc, jobs.JOBTYPE_OZONE_TIMER, 2*time.Hour)
+	job, err := config.JobManager.StartJobWithTimeout(runOzoneFunc, jobs.JOBTYPE_OZONE_TIMER, 2*time.Hour)
 	if err != nil {
 		respondWithError(writer, http.StatusInternalServerError, "could not start the ozone timer")
 		return
@@ -101,9 +100,8 @@ func (config *serverConfig) handlerStartOzone(writer http.ResponseWriter, req *h
 
 func (config *serverConfig) handlerStopOzone(writer http.ResponseWriter, req *http.Request) {
 	log.Println("handlerStopOzone")
-	jobConfig := jobs.NewJobConfig(config.DB)
 
-	err := jobConfig.CancelJob(jobs.JOBTYPE_OZONE_TIMER)
+	err := config.JobManager.CancelJob(jobs.JOBTYPE_OZONE_TIMER)
 	if err != nil {
 		respondWithError(writer, http.StatusNotModified, "could not stop the ozone job")
 		return
@@ -115,14 +113,14 @@ func (config *serverConfig) handlerStopOzone(writer http.ResponseWriter, req *ht
 func runOzoneFunc(config *jobs.JobConfig, ctx context.Context, cancel context.CancelFunc, jobId uuid.UUID) {
 	defer cancel()
 
-	sensor.TurnOzoneOn()
+	config.SensorConfig.TurnOzoneOn()
 
 	for {
 		select {
 
 		case <-ctx.Done():
 			// task was canceled or timedout
-			sensor.TurnOzoneOff()
+			config.SensorConfig.TurnOzoneOff()
 			config.StopJob(jobs.JOBTYPE_OZONE_TIMER, "Success")
 
 			return

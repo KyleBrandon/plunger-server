@@ -6,10 +6,19 @@ package database
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+type Event struct {
+	ID        uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	EventType int32
+	EventData json.RawMessage
+}
 
 type Job struct {
 	ID              uuid.UUID

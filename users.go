@@ -66,8 +66,8 @@ func (config *serverConfig) handlerCreateUser(writer http.ResponseWriter, req *h
 	createUserParams := database.CreateUserParams{
 		ID:        uuid.New(),
 		Email:     params.Email,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 	}
 
 	user, err := config.DB.CreateUser(ctx, createUserParams)

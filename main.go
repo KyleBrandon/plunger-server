@@ -9,17 +9,19 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 )
 
 const CONFIG_FILENAME string = "config.json"
 
 type serverConfig struct {
-	ServerPort  string
-	DatabaseURL string
-	Sensors     sensor.SensorConfig
-	DB          *database.Queries
-	JobManager  *jobs.JobConfig
+	ServerPort       string
+	DatabaseURL      string
+	Sensors          sensor.SensorConfig
+	DB               *database.Queries
+	JobManager       *jobs.JobConfig
+	LeakMonitorJobId uuid.UUID
 }
 
 func main() {
@@ -28,6 +30,8 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to load config file")
 	}
+
+	config.StartMonitoringLeaks()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/health", config.handlerGetHealth)
@@ -38,6 +42,7 @@ func main() {
 	mux.HandleFunc("GET /v1/ozone/{JOBID}", config.handlerGetOzone)
 	mux.HandleFunc("POST /v1/ozone/start", config.handlerStartOzone)
 	mux.HandleFunc("POST /v1/ozone/stop", config.handlerStopOzone)
+	mux.HandleFunc("GET /v1/leaks", config.handlerGetLeak)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),
@@ -68,7 +73,7 @@ func initializeServerConfig() (serverConfig, error) {
 	}
 
 	sc.openDatabase()
-	sc.JobManager = jobs.NewJobConfig(sc.DB)
+	sc.JobManager = jobs.NewJobConfig(sc.DB, sensorConfig)
 
 	return sc, nil
 }

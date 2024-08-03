@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
+	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/google/uuid"
 )
 
 const (
-	JOBTYPE_OZONE_TIMER = 1
+	JOBTYPE_OZONE_TIMER  = 1
+	JOBTYPE_LEAK_MONITOR = 2
 )
 
 const (
@@ -30,6 +32,8 @@ type JobStore interface {
 	GetRunningJobsByType(ctx context.Context, jobType int32) ([]database.Job, error)
 	UpdateCancelRequested(ctx context.Context, arg database.UpdateCancelRequestedParams) (database.Job, error)
 	UpdateJob(ctx context.Context, arg database.UpdateJobParams) (database.Job, error)
+	CreateEvent(ctx context.Context, arg database.CreateEventParams) (database.Event, error)
+	GetLatestEventByType(ctx context.Context, eventType int32) (database.Event, error)
 }
 
 // Function signature used to define a job to run
@@ -37,15 +41,17 @@ type JobFunc func(*JobConfig, context.Context, context.CancelFunc, uuid.UUID)
 
 // Configuration used to manage the job runner state
 type JobConfig struct {
-	mux *sync.Mutex
-	DB  JobStore
+	mux          *sync.Mutex
+	DB           JobStore
+	SensorConfig sensor.SensorConfig
 }
 
-func NewJobConfig(DB JobStore) *JobConfig {
+func NewJobConfig(DB JobStore, sc sensor.SensorConfig) *JobConfig {
 
 	return &JobConfig{
-		DB:  DB,
-		mux: &sync.Mutex{},
+		DB:           DB,
+		mux:          &sync.Mutex{},
+		SensorConfig: sc,
 	}
 }
 
@@ -72,7 +78,7 @@ func (config *JobConfig) GetRunningJob(jobType int32) (*database.Job, error) {
 	return &ozoneJobs[0], nil
 }
 
-func (config *JobConfig) StartJob(execute JobFunc, jobType int32, timeoutPeriod time.Duration) (*database.Job, error) {
+func (config *JobConfig) StartJobWithTimeout(execute JobFunc, jobType int32, timeoutPeriod time.Duration) (*database.Job, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx, cancel = context.WithTimeout(ctx, timeoutPeriod)
@@ -93,6 +99,35 @@ func (config *JobConfig) StartJob(execute JobFunc, jobType int32, timeoutPeriod 
 	}
 
 	params.EndTime = params.StartTime.Add(timeoutPeriod)
+
+	job, err := config.DB.CreateJob(ctx, params)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	go execute(config, ctx, cancel, jobId)
+
+	return &job, nil
+}
+
+func (config *JobConfig) StartJob(execute JobFunc, jobType int32) (*database.Job, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	config.mux.Lock()
+	defer config.mux.Unlock()
+
+	config.ensureOnlyOneJob(context.Background(), jobType)
+
+	jobId := uuid.New()
+	params := database.CreateJobParams{
+		ID:        jobId,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+		JobType:   jobType,
+		Status:    JOBSTATUS_STARTED,
+		StartTime: time.Now().UTC(),
+	}
 
 	job, err := config.DB.CreateJob(ctx, params)
 	if err != nil {
@@ -151,7 +186,6 @@ func (config *JobConfig) StopJob(jobType int32, result string) error {
 }
 
 func (config *JobConfig) IsJobCanceled(jobId uuid.UUID) bool {
-	log.Println("IsJobCanceled")
 	ctx := context.Background()
 	job, err := config.DB.GetJobById(ctx, jobId)
 	if err != nil {

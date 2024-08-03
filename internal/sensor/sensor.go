@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -28,6 +29,9 @@ type SensorConfig struct {
 	SensorTimeout      time.Duration
 	Devices            []DeviceConfig
 	TemperatureSensors map[string]DeviceConfig
+	LeakSensor         DeviceConfig
+	OzoneDevice        DeviceConfig
+	PumpDevice         DeviceConfig
 }
 
 type DeviceConfig struct {
@@ -56,11 +60,22 @@ func NewSensorConfig(sensorTimeout int, devices []DeviceConfig) (SensorConfig, e
 
 	sc.TemperatureSensors = make(map[string]DeviceConfig)
 	for _, d := range sc.Devices {
-		if d.SensorType != SENSOR_TEMPERATURE || d.DriverType != DRIVERTYPE_DS18B20 {
-			continue
+		switch d.SensorType {
+		case SENSOR_TEMPERATURE:
+			if d.DriverType == DRIVERTYPE_DS18B20 {
+				sc.TemperatureSensors[d.Address] = d
+			}
+		case SENSOR_LEAK:
+			sc.LeakSensor = d
+
+		case SENSOR_POWER:
+			if d.Name == "Pump" {
+				sc.PumpDevice = d
+			} else if d.Name == "Ozone" {
+				sc.OzoneDevice = d
+			}
 		}
 
-		sc.TemperatureSensors[d.Address] = d
 	}
 
 	return sc, nil
@@ -109,26 +124,66 @@ func (config *SensorConfig) ReadTemperatures() ([]TemperatureReading, error) {
 	return results, err
 }
 
-func readLeakSensor() {
+func (config *SensorConfig) IsLeakPresent() (bool, error) {
 	if err := rpio.Open(); err != nil {
-		fmt.Println(err)
-		os.Exit(0)
+		return false, err
 	}
 
 	defer rpio.Close()
 
-	pin := rpio.Pin(17)
-	pin.Input()
-	for i := 0; i < 10; i++ {
-		res := pin.Read()
-		leakDetected := false
-		if res == 1 {
-			leakDetected = true
-		}
-
-		fmt.Printf("Leak detected: %v\n", leakDetected)
-		time.Sleep(time.Second)
+	pinNumber, err := strconv.Atoi(config.LeakSensor.Address)
+	if err != nil {
+		return false, err
 	}
+
+	pin := rpio.Pin(pinNumber)
+	pin.Input()
+	res := pin.Read()
+	if res == 1 {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (config *SensorConfig) TurnOzoneOn() error {
+	log.Println("turn ozone on")
+	if err := rpio.Open(); err != nil {
+		return err
+	}
+
+	defer rpio.Close()
+
+	pinNumber, err := strconv.Atoi(config.OzoneDevice.Address)
+	if err != nil {
+		return err
+	}
+
+	pin := rpio.Pin(pinNumber)
+	pin.Output()
+	pin.High()
+
+	return nil
+}
+
+func (config *SensorConfig) TurnOzoneOff() error {
+	log.Println("turn ozone off")
+	if err := rpio.Open(); err != nil {
+		return err
+	}
+
+	defer rpio.Close()
+
+	pinNumber, err := strconv.Atoi(config.OzoneDevice.Address)
+	if err != nil {
+		return err
+	}
+
+	pin := rpio.Pin(pinNumber)
+	pin.Output()
+	pin.Low()
+
+	return nil
 }
 
 func turnPumpOn() {
@@ -158,36 +213,6 @@ func turnPumpOff() {
 	pin := rpio.Pin(22)
 	pin.Output()
 	pin.High()
-}
-
-func TurnOzoneOn() error {
-	log.Println("turn ozone on")
-	if err := rpio.Open(); err != nil {
-		return err
-	}
-
-	defer rpio.Close()
-
-	pin := rpio.Pin(24)
-	pin.Output()
-	pin.High()
-
-	return nil
-}
-
-func TurnOzoneOff() error {
-	log.Println("turn ozone off")
-	if err := rpio.Open(); err != nil {
-		return err
-	}
-
-	defer rpio.Close()
-
-	pin := rpio.Pin(24)
-	pin.Output()
-	pin.Low()
-
-	return nil
 }
 
 func readPowerRelays() {
