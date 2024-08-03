@@ -92,6 +92,30 @@ func (q *Queries) GetJobById(ctx context.Context, id uuid.UUID) (Job, error) {
 	return i, err
 }
 
+const getLatestJobByType = `-- name: GetLatestJobByType :one
+SELECT id, created_at, updated_at, job_type, status, start_time, end_time, result, cancel_requested FROM jobs
+WHERE job_type = $1
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestJobByType(ctx context.Context, jobType int32) (Job, error) {
+	row := q.db.QueryRowContext(ctx, getLatestJobByType, jobType)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.JobType,
+		&i.Status,
+		&i.StartTime,
+		&i.EndTime,
+		&i.Result,
+		&i.CancelRequested,
+	)
+	return i, err
+}
+
 const getRunningJobsByType = `-- name: GetRunningJobsByType :many
 SELECT id, created_at, updated_at, job_type, status, start_time, end_time, result, cancel_requested FROM jobs 
 WHERE job_type = $1 AND status = 1

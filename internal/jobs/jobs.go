@@ -33,7 +33,6 @@ type JobStore interface {
 	UpdateCancelRequested(ctx context.Context, arg database.UpdateCancelRequestedParams) (database.Job, error)
 	UpdateJob(ctx context.Context, arg database.UpdateJobParams) (database.Job, error)
 	CreateEvent(ctx context.Context, arg database.CreateEventParams) (database.Event, error)
-	GetLatestEventByType(ctx context.Context, eventType int32) (database.Event, error)
 }
 
 // Function signature used to define a job to run

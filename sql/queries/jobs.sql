@@ -25,3 +25,9 @@ RETURNING *;
 SELECT * FROM jobs 
 WHERE job_type = $1 AND status = 1;
 
+
+-- name: GetLatestJobByType :one
+SELECT * FROM jobs
+WHERE job_type = $1
+ORDER BY created_at DESC
+LIMIT 1;

@@ -53,36 +53,17 @@ func (config *serverConfig) getJobById(jobId uuid.UUID) (*database.Job, error) {
 	return &job, err
 }
 
-func (config *serverConfig) handlerGetOzone(writer http.ResponseWriter, req *http.Request) {
+func (config *serverConfig) handlerGetOzoneStatus(w http.ResponseWriter, r *http.Request) {
 	log.Println("handlerGetOzone")
 
-	var job *database.Job
-	var err error
-
-	param := req.PathValue("JOBID")
-	if param != "" {
-		jobId, err := uuid.Parse(param)
-		if err != nil {
-			log.Printf("invalid job id: %v", param)
-			respondWithError(writer, http.StatusNotFound, "could not find job")
-			return
-		}
-
-		job, err = config.getJobById(jobId)
-		if err != nil {
-			respondWithError(writer, http.StatusNotFound, "could not find job by id")
-			return
-		}
-	} else {
-		job, err = config.JobManager.GetRunningJob(jobs.JOBTYPE_OZONE_TIMER)
-		if err != nil {
-			respondWithError(writer, http.StatusNotFound, "could not find a running ozone job")
-			return
-		}
+	job, err := config.DB.GetLatestJobByType(r.Context(), jobs.JOBTYPE_OZONE_TIMER)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "cound not find any ozone job")
+		return
 	}
 
-	response := mapFromDB(job)
-	respondWithJSON(writer, http.StatusOK, response)
+	response := mapFromDB(&job)
+	respondWithJSON(w, http.StatusOK, response)
 }
 
 func (config *serverConfig) handlerStartOzone(writer http.ResponseWriter, req *http.Request) {
