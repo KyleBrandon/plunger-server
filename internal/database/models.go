@@ -32,6 +32,18 @@ type Job struct {
 	CancelRequested bool
 }
 
+type Plunge struct {
+	ID             uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	StartTime      sql.NullTime
+	StartWaterTemp sql.NullString
+	StartRoomTemp  sql.NullString
+	EndTime        sql.NullTime
+	EndWaterTemp   sql.NullString
+	EndRoomTemp    sql.NullString
+}
+
 type User struct {
 	ID        uuid.UUID
 	Email     string

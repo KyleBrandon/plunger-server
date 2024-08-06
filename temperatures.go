@@ -6,7 +6,7 @@ import (
 )
 
 func (config *serverConfig) handlerTemperaturesGet(w http.ResponseWriter, r *http.Request) {
-	log.Println("enter handlerGetTemperatureByLocation")
+	log.Println("handlerTemperaturesGet")
 
 	results, err := config.Sensors.ReadTemperatures()
 	if err != nil {

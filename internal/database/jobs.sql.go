@@ -155,7 +155,8 @@ func (q *Queries) GetRunningJobsByType(ctx context.Context, jobType int32) ([]Jo
 }
 
 const updateCancelRequested = `-- name: UpdateCancelRequested :one
-UPDATE jobs SET cancel_requested = $1 WHERE id = $2
+UPDATE jobs SET cancel_requested = $1, updated_at = CURRENT_TIMESTAMP  
+WHERE id = $2
 RETURNING id, created_at, updated_at, job_type, status, start_time, end_time, result, cancel_requested
 `
 
@@ -183,7 +184,7 @@ func (q *Queries) UpdateCancelRequested(ctx context.Context, arg UpdateCancelReq
 
 const updateJob = `-- name: UpdateJob :one
 UPDATE jobs
-SET status = $1, end_time = $2, result = $3, cancel_requested = $4
+SET status = $1, end_time = $2, result = $3, cancel_requested = $4, updated_at = CURRENT_TIMESTAMP
 WHERE id = $5
 RETURNING id, created_at, updated_at, job_type, status, start_time, end_time, result, cancel_requested
 `

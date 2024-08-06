@@ -1,9 +1,7 @@
 package sensor
 
 import (
-	"fmt"
 	"log"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -147,108 +145,101 @@ func (config *SensorConfig) IsLeakPresent() (bool, error) {
 }
 
 func (config *SensorConfig) TurnOzoneOn() error {
-	log.Println("turn ozone on")
-	if err := rpio.Open(); err != nil {
-		return err
-	}
-
-	defer rpio.Close()
-
-	pinNumber, err := strconv.Atoi(config.OzoneDevice.Address)
-	if err != nil {
-		return err
-	}
-
-	pin := rpio.Pin(pinNumber)
-	pin.Output()
-	pin.High()
-
-	return nil
+	return config.OzoneDevice.TurnOn()
 }
 
 func (config *SensorConfig) TurnOzoneOff() error {
-	log.Println("turn ozone off")
+	return config.OzoneDevice.TurnOff()
+}
+
+func (config *SensorConfig) IsPumpOn() (bool, error) {
+	return config.PumpDevice.IsOn()
+}
+
+func (config *SensorConfig) TurnPumpOn() error {
+	return config.PumpDevice.TurnOn()
+}
+
+func (config *SensorConfig) TurnPumpOff() error {
+	return config.PumpDevice.TurnOff()
+}
+
+func (device *DeviceConfig) IsOn() (bool, error) {
+	if err := rpio.Open(); err != nil {
+		return false, err
+	}
+
+	defer rpio.Close()
+
+	pinNumber, err := strconv.Atoi(device.Address)
+	if err != nil {
+		return false, err
+	}
+
+	pin := rpio.Pin(pinNumber)
+	pin.Input()
+	res := pin.Read()
+
+	var pinOnValue rpio.State = 1
+	if device.NormallyOn {
+		pinOnValue = 0
+	}
+
+	if res == pinOnValue {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (device *DeviceConfig) TurnOn() error {
+	log.Printf("turn on %v\n", device.Name)
 	if err := rpio.Open(); err != nil {
 		return err
 	}
 
 	defer rpio.Close()
 
-	pinNumber, err := strconv.Atoi(config.OzoneDevice.Address)
+	pinNumber, err := strconv.Atoi(device.Address)
 	if err != nil {
 		return err
 	}
 
 	pin := rpio.Pin(pinNumber)
 	pin.Output()
-	pin.Low()
+
+	// if the device is normally on, that means the pin is low when it is on
+	if device.NormallyOn {
+		pin.Low()
+	} else {
+		pin.High()
+	}
 
 	return nil
 }
 
-func turnPumpOn() {
-	log.Println("turn pump on")
+func (device *DeviceConfig) TurnOff() error {
+	log.Printf("turn off %v\n", device.Name)
 	if err := rpio.Open(); err != nil {
-		fmt.Println(err)
-		os.Exit(0)
+		return err
 	}
 
 	defer rpio.Close()
 
-	pin := rpio.Pin(22)
-	pin.Output()
-	pin.Low()
-
-}
-
-func turnPumpOff() {
-	log.Println("turn pump off")
-	if err := rpio.Open(); err != nil {
-		fmt.Println(err)
-		os.Exit(0)
+	pinNumber, err := strconv.Atoi(device.Address)
+	if err != nil {
+		return err
 	}
 
-	defer rpio.Close()
-
-	pin := rpio.Pin(22)
+	pin := rpio.Pin(pinNumber)
 	pin.Output()
-	pin.High()
-}
 
-func readPowerRelays() {
-	if err := rpio.Open(); err != nil {
-		fmt.Println(err)
-		os.Exit(0)
+	// if the device is normally on, that means the pin is high when it is off
+	if device.NormallyOn {
+		pin.High()
+	} else {
+		pin.Low()
 	}
 
-	defer rpio.Close()
-
-	pin := rpio.Pin(22)
-	pin.Output()
-	fmt.Println("toggle outlet 1 on")
-	pin.High()
-	time.Sleep(5 * time.Second)
-	fmt.Println("toggle outlet 1 off")
-	pin.Low()
-
-	time.Sleep(time.Second)
-
-	pin = rpio.Pin(23)
-	pin.Output()
-	fmt.Println("toggle outlet 2 on")
-	pin.High()
-	time.Sleep(time.Second)
-	fmt.Println("toggle outlet 2 off")
-	pin.Low()
-	time.Sleep(time.Second)
-
-	pin = rpio.Pin(24)
-	pin.Output()
-	fmt.Println("toggle outlet 3 on")
-	pin.High()
-	time.Sleep(time.Second)
-	fmt.Println("toggle outlet 3 off")
-	pin.Low()
-	time.Sleep(time.Second)
-
+	return nil
 }

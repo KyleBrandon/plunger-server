@@ -42,6 +42,11 @@ func main() {
 	mux.HandleFunc("POST /v1/ozone/start", config.handlerOzoneStart)
 	mux.HandleFunc("POST /v1/ozone/stop", config.handlerOzoneStop)
 	mux.HandleFunc("GET /v1/leaks", config.handlerLeakGet)
+	mux.HandleFunc("GET /v1/pump", config.handlerPumpGet)
+	mux.HandleFunc("GET /v1/plunges", config.handlePlungesGet)
+	mux.HandleFunc("GET /v1/plunges/{PLUNGE_ID}", config.handlePlungesGet)
+	mux.HandleFunc("POST /v1/plunges", config.handlePlungesStart)
+	mux.HandleFunc("PUT /v1/plunges/{PLUNGE_ID}", config.handlePlungesStop)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),

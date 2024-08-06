@@ -10,7 +10,7 @@ WHERE id = $1 LIMIT 1;
 
 -- name: UpdateJob :one
 UPDATE jobs
-SET status = $1, end_time = $2, result = $3, cancel_requested = $4
+SET status = $1, end_time = $2, result = $3, cancel_requested = $4, updated_at = CURRENT_TIMESTAMP
 WHERE id = $5
 RETURNING *;
 
@@ -18,7 +18,8 @@ RETURNING *;
 SELECT cancel_requested FROM jobs WHERE id = $1;
 
 -- name: UpdateCancelRequested :one
-UPDATE jobs SET cancel_requested = $1 WHERE id = $2
+UPDATE jobs SET cancel_requested = $1, updated_at = CURRENT_TIMESTAMP  
+WHERE id = $2
 RETURNING *;
 
 -- name: GetRunningJobsByType :many
