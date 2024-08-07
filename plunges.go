@@ -16,11 +16,13 @@ type PlungeResponse struct {
 	CreatedAt      time.Time `json:"created_at,omitempty"`
 	UpdatedAt      time.Time `json:"updated_at,omitempty"`
 	StartTime      time.Time `json:"start_time,omitempty"`
-	StartRoomTemp  string    `json:"start_room_temp,omitempty"`
-	StartWaterTemp string    `json:"start_water_temp,omitempty"`
 	EndTime        time.Time `json:"end_time,omitempty"`
-	EndWaterTemp   string    `json:"end_water_temp,omitempty"`
+	Running        bool      `json:"running"`
+	ElapsedTime    float64   `json:"elapsed_time"`
+	StartRoomTemp  string    `json:"start_room_temp,omitempty"`
 	EndRoomTemp    string    `json:"end_room_temp,omitempty"`
+	StartWaterTemp string    `json:"start_water_temp,omitempty"`
+	EndWaterTemp   string    `json:"end_water_temp,omitempty"`
 }
 
 func buildPlungeResponseFromDatabase(dbPlunge database.Plunge) PlungeResponse {
@@ -34,18 +36,22 @@ func buildPlungeResponseFromDatabase(dbPlunge database.Plunge) PlungeResponse {
 	if dbPlunge.StartTime.Valid {
 		resp.StartTime = dbPlunge.StartTime.Time
 	}
+	if dbPlunge.EndTime.Valid {
+		resp.EndTime = dbPlunge.EndTime.Time
+		resp.ElapsedTime = resp.EndTime.Sub(resp.StartTime).Seconds()
+		resp.Running = false
+	} else {
+		resp.ElapsedTime = time.Now().UTC().Sub(resp.StartTime).Seconds()
+		resp.Running = true
+	}
 	if dbPlunge.StartWaterTemp.Valid {
 		resp.StartWaterTemp = dbPlunge.StartWaterTemp.String
 	}
-	if dbPlunge.StartRoomTemp.Valid {
-		resp.StartRoomTemp = dbPlunge.StartRoomTemp.String
-	}
-
-	if dbPlunge.EndTime.Valid {
-		resp.EndTime = dbPlunge.EndTime.Time
-	}
 	if dbPlunge.EndWaterTemp.Valid {
 		resp.EndWaterTemp = dbPlunge.EndWaterTemp.String
+	}
+	if dbPlunge.StartRoomTemp.Valid {
+		resp.StartRoomTemp = dbPlunge.StartRoomTemp.String
 	}
 	if dbPlunge.EndRoomTemp.Valid {
 		resp.EndRoomTemp = dbPlunge.EndRoomTemp.String
