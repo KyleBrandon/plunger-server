@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -20,7 +20,7 @@ type UserResponse struct {
 	ApiKey    string    `json:"api_key"`
 }
 
-func newUserResponse(user database.User) UserResponse {
+func databaseUserToUser(user database.User) UserResponse {
 	return UserResponse{
 		ID:        user.ID.String(),
 		Email:     user.Email,
@@ -31,24 +31,26 @@ func newUserResponse(user database.User) UserResponse {
 }
 
 func (config *serverConfig) handlerUserGet(writer http.ResponseWriter, req *http.Request) {
+	slog.Debug("handleUserGet")
+
 	apiKey, err := auth.ParseApiKey(req)
 	if err != nil {
-		log.Printf("Could not parse the API key: %v\n", err)
-		respondWithError(writer, http.StatusForbidden, "not authorized")
+		respondWithError(writer, http.StatusForbidden, "not authorized", err)
 		return
 	}
 
 	user, err := config.DB.GetUserByApiKey(req.Context(), apiKey)
 	if err != nil {
-		log.Printf("Could not find user with API key: %v\n", err)
-		respondWithError(writer, http.StatusForbidden, "not authorized")
+		respondWithError(writer, http.StatusForbidden, "not authorized", err)
 		return
 	}
 
-	respondWithJSON(writer, http.StatusOK, newUserResponse(user))
+	respondWithJSON(writer, http.StatusOK, databaseUserToUser(user))
 }
 
 func (config *serverConfig) handlerUserCreate(writer http.ResponseWriter, req *http.Request) {
+	slog.Debug("handleUserCreate")
+
 	params := struct {
 		Email string `json:"email"`
 	}{}
@@ -56,8 +58,7 @@ func (config *serverConfig) handlerUserCreate(writer http.ResponseWriter, req *h
 	decoder := json.NewDecoder(req.Body)
 	err := decoder.Decode(&params)
 	if err != nil {
-		log.Printf("Could not parse body: %v\n", err)
-		respondWithError(writer, http.StatusInternalServerError, "could not parse body")
+		respondWithError(writer, http.StatusInternalServerError, "could not parse body", err)
 		return
 	}
 
@@ -72,10 +73,9 @@ func (config *serverConfig) handlerUserCreate(writer http.ResponseWriter, req *h
 
 	user, err := config.DB.CreateUser(ctx, createUserParams)
 	if err != nil {
-		log.Printf("Failed to create user: %v\n", err)
-		respondWithError(writer, http.StatusInternalServerError, "failed to create user")
+		respondWithError(writer, http.StatusInternalServerError, "failed to create user", err)
 		return
 	}
 
-	respondWithJSON(writer, http.StatusCreated, newUserResponse(user))
+	respondWithJSON(writer, http.StatusCreated, databaseUserToUser(user))
 }

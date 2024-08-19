@@ -3,8 +3,9 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
@@ -25,10 +26,13 @@ type serverConfig struct {
 }
 
 func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	slog.SetDefault(logger)
 
 	config, err := initializeServerConfig()
 	if err != nil {
-		log.Fatal("failed to load config file")
+		slog.Error("failed to load config file")
+		os.Exit(1)
 	}
 
 	config.StartMonitoringLeaks()
@@ -43,6 +47,8 @@ func main() {
 	mux.HandleFunc("POST /v1/ozone/stop", config.handlerOzoneStop)
 	mux.HandleFunc("GET /v1/leaks", config.handlerLeakGet)
 	mux.HandleFunc("GET /v1/pump", config.handlerPumpGet)
+	mux.HandleFunc("POST /v1/pump/start", config.handlerPumpStart)
+	mux.HandleFunc("POST /v1/pump/stop", config.handlerPumpStop)
 	mux.HandleFunc("GET /v1/plunges", config.handlePlungesGet)
 	mux.HandleFunc("GET /v1/plunges/{PLUNGE_ID}", config.handlePlungesGet)
 	mux.HandleFunc("POST /v1/plunges", config.handlePlungesStart)
@@ -62,12 +68,14 @@ func main() {
 func initializeServerConfig() (serverConfig, error) {
 	configSettings, err := LoadConfigFile(CONFIG_FILENAME)
 	if err != nil {
-		log.Fatalf("failed to load config file: %v\n", err)
+		slog.Error("failed to load config file", "error", err)
+		os.Exit(1)
 	}
 
 	sensorConfig, err := sensor.NewSensorConfig(configSettings.SensorTimeoutSeconds, configSettings.Devices)
 	if err != nil {
-		log.Fatal("failed to initailize sensors")
+		slog.Error("failed to initailize sensors")
+		os.Exit(1)
 	}
 
 	sc := serverConfig{
@@ -85,7 +93,7 @@ func initializeServerConfig() (serverConfig, error) {
 func (config *serverConfig) openDatabase() {
 	db, err := sql.Open("postgres", config.DatabaseURL)
 	if err != nil {
-		log.Fatal("failed to open database connection", err)
+		slog.Error("failed to open database connection", "error", err)
 	}
 
 	config.DB = database.New(db)

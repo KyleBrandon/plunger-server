@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -21,7 +21,7 @@ type OzoneJob struct {
 	CancelRequested bool      `json:"cancel_requested"`
 }
 
-func mapFromDB(dbJob *database.Job) OzoneJob {
+func databaseJobToOzoneJob(dbJob *database.Job) OzoneJob {
 
 	var status string
 	var timeLeft float64
@@ -54,37 +54,37 @@ func (config *serverConfig) getJobById(jobId uuid.UUID) (*database.Job, error) {
 }
 
 func (config *serverConfig) handlerOzoneGet(w http.ResponseWriter, r *http.Request) {
-	log.Println("handlerGetOzone")
+	slog.Debug("handlerGetOzone")
 
 	job, err := config.DB.GetLatestJobByType(r.Context(), jobs.JOBTYPE_OZONE_TIMER)
 	if err != nil {
-		respondWithError(w, http.StatusNotFound, "cound not find any ozone job")
+		respondWithError(w, http.StatusNotFound, "cound not find any ozone job", err)
 		return
 	}
 
-	response := mapFromDB(&job)
+	response := databaseJobToOzoneJob(&job)
 	respondWithJSON(w, http.StatusOK, response)
 }
 
 func (config *serverConfig) handlerOzoneStart(writer http.ResponseWriter, req *http.Request) {
-	log.Println("handlerStartOzone")
+	slog.Debug("handlerStartOzone")
 
 	job, err := config.JobManager.StartJobWithTimeout(runOzoneFunc, jobs.JOBTYPE_OZONE_TIMER, 2*time.Hour)
 	if err != nil {
-		respondWithError(writer, http.StatusInternalServerError, "could not start the ozone timer")
+		respondWithError(writer, http.StatusInternalServerError, "could not start the ozone timer", err)
 		return
 	}
 
-	response := mapFromDB(job)
+	response := databaseJobToOzoneJob(job)
 	respondWithJSON(writer, http.StatusCreated, response)
 }
 
 func (config *serverConfig) handlerOzoneStop(writer http.ResponseWriter, req *http.Request) {
-	log.Println("handlerStopOzone")
+	slog.Debug("handlerStopOzone")
 
 	err := config.JobManager.CancelJob(jobs.JOBTYPE_OZONE_TIMER)
 	if err != nil {
-		respondWithError(writer, http.StatusNotModified, "could not stop the ozone job")
+		respondWithError(writer, http.StatusNotModified, "could not stop the ozone job", err)
 		return
 	}
 

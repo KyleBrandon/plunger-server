@@ -1,12 +1,12 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 )
 
 func (config *serverConfig) handlerHealthGet(writer http.ResponseWriter, req *http.Request) {
-	log.Println("enter handlerGetHealth")
+	slog.Debug("enter handlerGetHealth")
 	response := struct {
 		Status string `json:"status"`
 	}{

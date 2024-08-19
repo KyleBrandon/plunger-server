@@ -3,9 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
-
-	// "log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -15,17 +13,17 @@ import (
 )
 
 func (config *serverConfig) handlerLeakGet(w http.ResponseWriter, r *http.Request) {
-	log.Println("handlerGetLeak")
+	slog.Debug("handlerGetLeak")
 
 	leakEvents := make([]database.Event, 0)
 
 	filter := r.URL.Query().Get("filter")
+	// TODO: Break this up and have a separate handler for one leak vs multiple
 	if filter == "current" {
 
 		leak, err := config.DB.GetLatestEventByType(context.Background(), EVENTTYPE_LEAK)
 		if err != nil {
-			log.Printf("failed to read the latest leak event: %v\n", err)
-			respondWithError(w, http.StatusNotFound, "could not read lead event")
+			respondWithError(w, http.StatusNotFound, "could not read lead event", err)
 			return
 		}
 
@@ -38,8 +36,7 @@ func (config *serverConfig) handlerLeakGet(w http.ResponseWriter, r *http.Reques
 		}
 		leaks, err := config.DB.GetEventsByType(r.Context(), params)
 		if err != nil {
-			log.Printf("failed to read the leak events: %v\n", err)
-			respondWithError(w, http.StatusInternalServerError, "failed to read the leak events")
+			respondWithError(w, http.StatusInternalServerError, "failed to read the leak events", err)
 			return
 		}
 
@@ -48,7 +45,7 @@ func (config *serverConfig) handlerLeakGet(w http.ResponseWriter, r *http.Reques
 
 	response, err := BuildLeakEventsFromEvents(leakEvents)
 	if err != nil {
-		respondWithError(w, http.StatusNotFound, "could not read the leak events")
+		respondWithError(w, http.StatusNotFound, "could not read the leak events", err)
 		return
 	}
 
@@ -57,9 +54,11 @@ func (config *serverConfig) handlerLeakGet(w http.ResponseWriter, r *http.Reques
 }
 
 func (config *serverConfig) StartMonitoringLeaks() error {
+	slog.Debug("StartMonitoringLeaks")
+
 	job, err := config.JobManager.StartJob(runLeakDetectionFunc, jobs.JOBTYPE_LEAK_MONITOR)
 	if err != nil {
-		log.Printf("failed to start monitoring job for leaks: %v", err)
+		slog.Error("failed to start monitoring job for leaks", "error", err)
 		return err
 	}
 
@@ -74,13 +73,13 @@ func runLeakDetectionFunc(config *jobs.JobConfig, ctx context.Context, cancel co
 	// get an initial reading
 	leakState, err := config.SensorConfig.IsLeakPresent()
 	if err != nil {
-		log.Printf("failed to read if leak was present: %v\n", err)
+		slog.Warn("failed to read if leak was present", "error", err)
 	}
 
 	for {
 		leakPresent, err := config.SensorConfig.IsLeakPresent()
 		if err != nil {
-			log.Printf("failed to read if leak was present: %v\n", err)
+			slog.Warn("failed to read if leak was present", "error", err)
 		}
 
 		// we only persist when a transition occurs
@@ -93,7 +92,7 @@ func runLeakDetectionFunc(config *jobs.JobConfig, ctx context.Context, cancel co
 
 			eventData, err := json.Marshal(leakData)
 			if err != nil {
-				log.Printf("failed to encode the current leak transition: %v\n", err)
+				slog.Warn("failed to encode the current leak transition", "error", err)
 				continue
 			}
 
@@ -104,11 +103,17 @@ func runLeakDetectionFunc(config *jobs.JobConfig, ctx context.Context, cancel co
 
 			_, err = config.DB.CreateEvent(ctx, params)
 			if err != nil {
-				log.Printf("failed to store the initial leak event: %v\n", err)
+				slog.Warn("failed to store the initial leak event", "error", err)
 			}
 
 			// save the current state
 			leakState = leakPresent
+		}
+
+		// If there is a leak, turn off the pump.
+		// TODO: this should be an event that we have listeners on
+		if leakPresent {
+			config.SensorConfig.TurnPumpOff()
 		}
 
 		select {

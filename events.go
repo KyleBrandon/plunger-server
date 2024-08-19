@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
@@ -30,7 +30,7 @@ func BuildLeakEventsFromEvents(events []database.Event) ([]LeakEvent, error) {
 		var dbLeakEvent DbLeakEvent
 		err := json.Unmarshal(event.EventData, &dbLeakEvent)
 		if err != nil {
-			log.Printf("failed to deserialize the leak event: %v\n", err)
+			slog.Error("failed to deserialize the leak event", "error", err)
 			return nil, err
 		}
 

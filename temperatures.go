@@ -1,16 +1,16 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 )
 
 func (config *serverConfig) handlerTemperaturesGet(w http.ResponseWriter, r *http.Request) {
-	log.Println("handlerTemperaturesGet")
+	slog.Debug("handlerTemperaturesGet")
 
 	results, err := config.Sensors.ReadTemperatures()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to read temperature sensor")
+		respondWithError(w, http.StatusInternalServerError, "failed to read temperature sensor", err)
 		return
 	}
 

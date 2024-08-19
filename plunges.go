@@ -2,8 +2,9 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -25,7 +26,7 @@ type PlungeResponse struct {
 	EndWaterTemp   string    `json:"end_water_temp,omitempty"`
 }
 
-func buildPlungeResponseFromDatabase(dbPlunge database.Plunge) PlungeResponse {
+func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
 
 	resp := PlungeResponse{
 		ID:        dbPlunge.ID,
@@ -61,20 +62,20 @@ func buildPlungeResponseFromDatabase(dbPlunge database.Plunge) PlungeResponse {
 }
 
 func (config *serverConfig) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
-	log.Println("handlePlungesGet")
+	slog.Debug("handlePlungesGet")
 	dbPlunges := make([]database.Plunge, 0)
 
 	plungeID := r.PathValue("PLUNGE_ID")
 	if plungeID != "" {
 		pid, err := uuid.Parse(plungeID)
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "could not find plunge")
+			respondWithError(w, http.StatusNotFound, "could not find plunge", err)
 			return
 		}
 
 		p, err := config.DB.GetPlungeByID(r.Context(), pid)
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "could not find plunge")
+			respondWithError(w, http.StatusNotFound, "could not find plunge", err)
 			return
 		}
 		dbPlunges = append(dbPlunges, p)
@@ -83,7 +84,7 @@ func (config *serverConfig) handlePlungesGet(w http.ResponseWriter, r *http.Requ
 		if filter == "current" {
 			p, err := config.DB.GetLatestPlunge(r.Context())
 			if err != nil {
-				respondWithError(w, http.StatusNotFound, "could not find a current plunge")
+				respondWithError(w, http.StatusNotFound, "could not find a current plunge", err)
 				return
 			}
 
@@ -91,7 +92,7 @@ func (config *serverConfig) handlePlungesGet(w http.ResponseWriter, r *http.Requ
 		} else {
 			p, err := config.DB.GetPlunges(r.Context())
 			if err != nil {
-				respondWithError(w, http.StatusNotFound, "could not find any plunges")
+				respondWithError(w, http.StatusNotFound, "could not find any plunges", err)
 				return
 			}
 
@@ -101,18 +102,18 @@ func (config *serverConfig) handlePlungesGet(w http.ResponseWriter, r *http.Requ
 
 	plunges := make([]PlungeResponse, 0, len(dbPlunges))
 	for _, p := range dbPlunges {
-		plunges = append(plunges, buildPlungeResponseFromDatabase(p))
+		plunges = append(plunges, databasePlungeToPlunge(p))
 	}
 
 	respondWithJSON(w, http.StatusOK, plunges)
 }
 
 func (config *serverConfig) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
-	log.Println("handlePlungesStart")
+	slog.Debug("handlePlungesStart")
 
 	temperatures, err := config.Sensors.ReadTemperatures()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer")
+		respondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
 		return
 	}
 
@@ -137,30 +138,30 @@ func (config *serverConfig) handlePlungesStart(w http.ResponseWriter, r *http.Re
 
 	plunge, err := config.DB.StartPlunge(r.Context(), params)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer")
+		respondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, buildPlungeResponseFromDatabase(plunge))
+	respondWithJSON(w, http.StatusCreated, databasePlungeToPlunge(plunge))
 }
 
 func (config *serverConfig) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
-	log.Println("handlePlungesStop")
+	slog.Debug("handlePlungesStop")
 
 	plungeID := r.PathValue("PLUNGE_ID")
 	if plungeID == "" {
-		respondWithError(w, http.StatusNotFound, "could not find plunge")
+		respondWithError(w, http.StatusNotFound, "could not find plunge", errors.New("plunge id path value not set"))
 		return
 	}
 	pid, err := uuid.Parse(plungeID)
 	if err != nil {
-		respondWithError(w, http.StatusNotFound, "could not find plunge")
+		respondWithError(w, http.StatusNotFound, "could not find plunge", err)
 		return
 	}
 
 	temperatures, err := config.Sensors.ReadTemperatures()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer")
+		respondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
 		return
 	}
 
@@ -184,11 +185,11 @@ func (config *serverConfig) handlePlungesStop(w http.ResponseWriter, r *http.Req
 		EndRoomTemp:  roomTemp,
 	}
 
-	plunge, err := config.DB.StopPlunge(r.Context(), params)
+	_, err = config.DB.StopPlunge(r.Context(), params)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer")
+		respondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, buildPlungeResponseFromDatabase(plunge))
+	respondWithNoContent(w, http.StatusNoContent)
 }

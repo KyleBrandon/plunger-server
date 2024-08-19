@@ -4,7 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
+	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -66,12 +67,12 @@ func (config *JobConfig) GetRunningJob(jobType int32) (*database.Job, error) {
 	}
 
 	if len(ozoneJobs) == 0 {
-		log.Printf("no ozone jobs are currently running")
+		slog.Error("no ozone jobs are currently running")
 		return nil, ErrJobNotFound
 	}
 
 	if len(ozoneJobs) > 1 {
-		log.Printf("there should only be one running ozone job, found: %v\n", len(ozoneJobs))
+		slog.Warn("there should only be one running ozone job", "jobs_running", len(ozoneJobs))
 	}
 
 	return &ozoneJobs[0], nil
@@ -188,7 +189,7 @@ func (config *JobConfig) IsJobCanceled(jobId uuid.UUID) bool {
 	ctx := context.Background()
 	job, err := config.DB.GetJobById(ctx, jobId)
 	if err != nil {
-		log.Printf("failed to find the job %v: %v\n", jobId, err)
+		slog.Error("failed to find the job", "job_id", jobId, "error", err)
 		return false
 	}
 
@@ -198,12 +199,12 @@ func (config *JobConfig) IsJobCanceled(jobId uuid.UUID) bool {
 func (config *JobConfig) ensureOnlyOneJob(context context.Context, jobType int32) {
 	currentJobs, err := config.DB.GetRunningJobsByType(context, jobType)
 	if err != nil {
-		log.Printf("failed to find any existing running jobs of type %v: %v\n", jobType, err)
+		slog.Error(fmt.Sprintf("failed to find any existing running jobs of type: %v", jobType), "error", err)
 		return
 	}
 
 	if len(currentJobs) > 0 {
-		log.Printf("Found %v existing jobs of type %v\n", len(currentJobs), jobType)
+		slog.Warn(fmt.Sprintf("Found %v existing jobs of type %v\n", len(currentJobs), jobType))
 		result := sql.NullString{
 			String: "Canceled",
 			Valid:  true,

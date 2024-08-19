@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
+	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/google/uuid"
 )
 
@@ -35,6 +36,7 @@ func (store *jobStore) GetCancelRequested(ctx context.Context, id uuid.UUID) (bo
 	return store.Job.CancelRequested, nil
 
 }
+
 func (store *jobStore) GetJobById(ctx context.Context, id uuid.UUID) (database.Job, error) {
 	if store.Job.ID == id {
 		return store.Job, nil
@@ -70,13 +72,26 @@ func (store *jobStore) UpdateJob(ctx context.Context, arg database.UpdateJobPara
 	return database.Job{}, errors.New("job not found")
 }
 
+func (store *jobStore) CreateEvent(ctx context.Context, arg database.CreateEventParams) (database.Event, error) {
+
+	return database.Event{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		EventType: arg.EventType,
+		EventData: arg.EventData,
+	}, nil
+}
+
 func TestCreateJobTimesOut(t *testing.T) {
 	jobStore := jobStore{
 		Job: database.Job{},
 	}
 
-	jobConfig := NewJobConfig(&jobStore)
-	job, err := jobConfig.StartJob(testTimedJob, JOBTYPE_OZONE_TIMER, 500*time.Millisecond)
+	sc := sensor.SensorConfig{}
+
+	jobConfig := NewJobConfig(&jobStore, sc)
+	job, err := jobConfig.StartJobWithTimeout(testTimedJob, JOBTYPE_OZONE_TIMER, 500*time.Millisecond)
 	if err != nil {
 		t.Errorf("failed to start job: %v\n", err)
 		return
@@ -97,8 +112,10 @@ func TestCreateJobWithCancel(t *testing.T) {
 		Job: database.Job{},
 	}
 
-	jobConfig := NewJobConfig(&jobStore)
-	job, err := jobConfig.StartJob(testTimedJob, JOBTYPE_OZONE_TIMER, 5*time.Second)
+	sc := sensor.SensorConfig{}
+
+	jobConfig := NewJobConfig(&jobStore, sc)
+	job, err := jobConfig.StartJob(testTimedJob, JOBTYPE_OZONE_TIMER)
 	if err != nil {
 		t.Errorf("failed to start job: %v\n", err)
 		return
@@ -135,7 +152,7 @@ func testTimedJob(config *JobConfig, ctx context.Context, cancel context.CancelF
 			}
 			return
 
-		case <-time.After(500 * time.Millisecond):
+		case <-time.After(100 * time.Millisecond):
 			cancelRequested := config.IsJobCanceled(jobId)
 			if cancelRequested {
 				canceled = true

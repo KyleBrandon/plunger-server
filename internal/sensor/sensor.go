@@ -1,7 +1,7 @@
 package sensor
 
 import (
-	"log"
+	"log/slog"
 	"strconv"
 	"sync"
 	"time"
@@ -51,6 +51,7 @@ type TemperatureReading struct {
 }
 
 func NewSensorConfig(sensorTimeout int, devices []DeviceConfig) (SensorConfig, error) {
+	slog.Debug("NewSensorConfig")
 	sc := SensorConfig{
 		SensorTimeout: time.Duration(sensorTimeout) * time.Second,
 		Devices:       devices,
@@ -97,6 +98,7 @@ func readTemperatureSensor(device *DeviceConfig, wg *sync.WaitGroup, readings ch
 }
 
 func (config *SensorConfig) ReadTemperatures() ([]TemperatureReading, error) {
+	slog.Debug("ReadTemperatures")
 
 	var wg sync.WaitGroup
 	wg.Add(len(config.TemperatureSensors))
@@ -113,7 +115,7 @@ func (config *SensorConfig) ReadTemperatures() ([]TemperatureReading, error) {
 	results := make([]TemperatureReading, 0, len(readings))
 	for reading := range readings {
 		if reading.Err != nil {
-			log.Printf("failed to read sensor (%v): %v\n", reading.Address, reading.Err)
+			slog.Error("failed to read sensor", "name", reading.Name, "address", reading.Address, "error", reading.Err)
 			err = reading.Err
 		}
 		results = append(results, reading)
@@ -123,6 +125,7 @@ func (config *SensorConfig) ReadTemperatures() ([]TemperatureReading, error) {
 }
 
 func (config *SensorConfig) IsLeakPresent() (bool, error) {
+	slog.Debug("IsLeakPresent")
 	if err := rpio.Open(); err != nil {
 		return false, err
 	}
@@ -135,7 +138,6 @@ func (config *SensorConfig) IsLeakPresent() (bool, error) {
 	}
 
 	pin := rpio.Pin(pinNumber)
-	pin.Input()
 	res := pin.Read()
 	if res == 1 {
 		return true, nil
@@ -165,6 +167,7 @@ func (config *SensorConfig) TurnPumpOff() error {
 }
 
 func (device *DeviceConfig) IsOn() (bool, error) {
+	slog.Debug("Device.IsOn", "name", device.Name, "address", device.Address)
 	if err := rpio.Open(); err != nil {
 		return false, err
 	}
@@ -177,7 +180,6 @@ func (device *DeviceConfig) IsOn() (bool, error) {
 	}
 
 	pin := rpio.Pin(pinNumber)
-	pin.Input()
 	res := pin.Read()
 
 	var pinOnValue rpio.State = 1
@@ -193,7 +195,7 @@ func (device *DeviceConfig) IsOn() (bool, error) {
 }
 
 func (device *DeviceConfig) TurnOn() error {
-	log.Printf("turn on %v\n", device.Name)
+	slog.Debug("Device.TurnOn", "name", device.Name)
 	if err := rpio.Open(); err != nil {
 		return err
 	}
@@ -219,7 +221,7 @@ func (device *DeviceConfig) TurnOn() error {
 }
 
 func (device *DeviceConfig) TurnOff() error {
-	log.Printf("turn off %v\n", device.Name)
+	slog.Debug("Device.TurnOff", "name", device.Name)
 	if err := rpio.Open(); err != nil {
 		return err
 	}
