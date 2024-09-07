@@ -1,16 +1,30 @@
-package main
+package pump
 
 import (
 	"log/slog"
 	"net/http"
+
+	"github.com/KyleBrandon/plunger-server/utils"
 )
 
-func (config *serverConfig) handlerPumpGet(w http.ResponseWriter, r *http.Request) {
+func NewHandler(pump PumpSensor) *Handler {
+	return &Handler{
+		pump,
+	}
+}
+
+func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v1/pump", h.handlerPumpGet)
+	mux.HandleFunc("POST /v1/pump/start", h.handlerPumpStart)
+	mux.HandleFunc("POST /v1/pump/stop", h.handlerPumpStop)
+}
+
+func (h *Handler) handlerPumpGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlerPumpGet")
 
-	pumpOn, err := config.Sensors.IsPumpOn()
+	pumpOn, err := h.pump.IsPumpOn()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "could not start the ozone timer", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "could not start the ozone timer", err)
 		return
 	}
 
@@ -20,28 +34,28 @@ func (config *serverConfig) handlerPumpGet(w http.ResponseWriter, r *http.Reques
 		PumpOn: pumpOn,
 	}
 
-	respondWithJSON(w, http.StatusOK, response)
+	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
-func (config *serverConfig) handlerPumpStart(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handlerPumpStart(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlerPumpStart")
-	err := config.Sensors.TurnPumpOn()
+	err := h.pump.TurnPumpOn()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to turn on the pump", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to turn on the pump", err)
 		return
 	}
 
-	respondWithNoContent(w, http.StatusNoContent)
+	utils.RespondWithNoContent(w, http.StatusNoContent)
 }
 
-func (config *serverConfig) handlerPumpStop(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handlerPumpStop(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlerPumpStop")
 
-	err := config.Sensors.TurnPumpOff()
+	err := h.pump.TurnPumpOff()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to turn off the pump", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to turn off the pump", err)
 		return
 	}
 
-	respondWithNoContent(w, http.StatusNoContent)
+	utils.RespondWithNoContent(w, http.StatusNoContent)
 }

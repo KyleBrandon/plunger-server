@@ -7,8 +7,6 @@ import (
 	"github.com/KyleBrandon/plunger-server/utils"
 )
 
-type Handler struct{}
-
 func NewHandler() *Handler {
 	return &Handler{}
 }

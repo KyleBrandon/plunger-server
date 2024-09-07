@@ -12,21 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type OzoneJob struct {
-	ID              uuid.UUID `json:"id"`
-	Status          string    `json:"status"`
-	StartTime       time.Time `json:"start_time"`
-	EndTime         time.Time `json:"end_time"`
-	SecondsLeft     float64   `json:"seconds_left"`
-	Result          string    `json:"result"`
-	CancelRequested bool      `json:"cancel_requested"`
-}
-
-type Handler struct {
-	manager *jobs.JobConfig
-	store   jobs.JobStore
-}
-
 func NewHandler(manager *jobs.JobConfig, store jobs.JobStore) *Handler {
 	return &Handler{
 		manager: manager,
@@ -63,12 +48,6 @@ func databaseJobToOzoneJob(dbJob *database.Job) OzoneJob {
 
 	return oj
 }
-
-// func (h *Handler) getJobById(jobId uuid.UUID) (*database.Job, error) {
-// 	job, err := h.manager.DB.GetJobById(context.Background(), jobId)
-//
-// 	return &job, err
-// }
 
 func (h *Handler) handlerOzoneGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlerGetOzone")
