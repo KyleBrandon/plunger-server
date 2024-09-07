@@ -34,7 +34,6 @@ func (store *jobStore) CreateJob(ctx context.Context, arg database.CreateJobPara
 
 func (store *jobStore) GetCancelRequested(ctx context.Context, id uuid.UUID) (bool, error) {
 	return store.Job.CancelRequested, nil
-
 }
 
 func (store *jobStore) GetJobById(ctx context.Context, id uuid.UUID) (database.Job, error) {
@@ -73,7 +72,6 @@ func (store *jobStore) UpdateJob(ctx context.Context, arg database.UpdateJobPara
 }
 
 func (store *jobStore) CreateEvent(ctx context.Context, arg database.CreateEventParams) (database.Event, error) {
-
 	return database.Event{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
@@ -139,7 +137,7 @@ func testTimedJob(config *JobConfig, ctx context.Context, cancel context.CancelF
 
 	// sensor.TurnOzoneOn()
 	log.Println("Start Timed Job")
-	var canceled bool = false
+	canceled := false
 
 	for {
 		select {
@@ -162,5 +160,4 @@ func testTimedJob(config *JobConfig, ctx context.Context, cancel context.CancelF
 
 		}
 	}
-
 }

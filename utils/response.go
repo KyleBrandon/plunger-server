@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"encoding/json"
@@ -7,10 +7,10 @@ import (
 	"net/http"
 )
 
-func respondWithJSON(writer http.ResponseWriter, code int, payload interface{}) {
+func RespondWithJSON(writer http.ResponseWriter, code int, payload interface{}) {
 	resultData, err := json.Marshal(payload)
 	if err != nil {
-		respondWithError(writer, http.StatusBadRequest, "Error marshalling result", err)
+		RespondWithError(writer, http.StatusBadRequest, "Error marshalling result", err)
 		return
 	}
 
@@ -19,7 +19,7 @@ func respondWithJSON(writer http.ResponseWriter, code int, payload interface{}) 
 	writer.Write(resultData)
 }
 
-func respondWithError(writer http.ResponseWriter, code int, message string, err error) {
+func RespondWithError(writer http.ResponseWriter, code int, message string, err error) {
 	slog.Error(message, "http_status", code, "error", err)
 
 	response := struct {
@@ -28,15 +28,15 @@ func respondWithError(writer http.ResponseWriter, code int, message string, err 
 		Error: message,
 	}
 
-	respondWithJSON(writer, code, response)
+	RespondWithJSON(writer, code, response)
 }
 
-func respondWithString(writer http.ResponseWriter, contentType string, code int, msg string) {
+func RespondWithString(writer http.ResponseWriter, contentType string, code int, msg string) {
 	writer.Header().Set("Content-Type", contentType)
 	writer.WriteHeader(code)
 	io.WriteString(writer, msg)
 }
 
-func respondWithNoContent(writer http.ResponseWriter, code int) {
+func RespondWithNoContent(writer http.ResponseWriter, code int) {
 	writer.WriteHeader(code)
 }

@@ -1,4 +1,4 @@
-package main
+package ozone
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
+	"github.com/KyleBrandon/plunger-server/utils"
 	"github.com/google/uuid"
 )
 
@@ -21,8 +22,25 @@ type OzoneJob struct {
 	CancelRequested bool      `json:"cancel_requested"`
 }
 
-func databaseJobToOzoneJob(dbJob *database.Job) OzoneJob {
+type Handler struct {
+	manager *jobs.JobConfig
+	store   jobs.JobStore
+}
 
+func NewHandler(manager *jobs.JobConfig, store jobs.JobStore) *Handler {
+	return &Handler{
+		manager: manager,
+		store:   store,
+	}
+}
+
+func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v1/ozone", h.handlerOzoneGet)
+	mux.HandleFunc("POST /v1/ozone/start", h.handlerOzoneStart)
+	mux.HandleFunc("POST /v1/ozone/stop", h.handlerOzoneStop)
+}
+
+func databaseJobToOzoneJob(dbJob *database.Job) OzoneJob {
 	var status string
 	var timeLeft float64
 	if dbJob.Status == jobs.JOBSTATUS_STARTED {
@@ -46,49 +64,48 @@ func databaseJobToOzoneJob(dbJob *database.Job) OzoneJob {
 	return oj
 }
 
-func (config *serverConfig) getJobById(jobId uuid.UUID) (*database.Job, error) {
+// func (h *Handler) getJobById(jobId uuid.UUID) (*database.Job, error) {
+// 	job, err := h.manager.DB.GetJobById(context.Background(), jobId)
+//
+// 	return &job, err
+// }
 
-	job, err := config.JobManager.DB.GetJobById(context.Background(), jobId)
-
-	return &job, err
-}
-
-func (config *serverConfig) handlerOzoneGet(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handlerOzoneGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlerGetOzone")
 
-	job, err := config.DB.GetLatestJobByType(r.Context(), jobs.JOBTYPE_OZONE_TIMER)
+	job, err := h.store.GetLatestJobByType(r.Context(), jobs.JOBTYPE_OZONE_TIMER)
 	if err != nil {
-		respondWithError(w, http.StatusNotFound, "cound not find any ozone job", err)
+		utils.RespondWithError(w, http.StatusNotFound, "cound not find any ozone job", err)
 		return
 	}
 
 	response := databaseJobToOzoneJob(&job)
-	respondWithJSON(w, http.StatusOK, response)
+	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
-func (config *serverConfig) handlerOzoneStart(writer http.ResponseWriter, req *http.Request) {
+func (h *Handler) handlerOzoneStart(writer http.ResponseWriter, _ *http.Request) {
 	slog.Debug("handlerStartOzone")
 
-	job, err := config.JobManager.StartJobWithTimeout(runOzoneFunc, jobs.JOBTYPE_OZONE_TIMER, 2*time.Hour)
+	job, err := h.manager.StartJobWithTimeout(runOzoneFunc, jobs.JOBTYPE_OZONE_TIMER, 2*time.Hour)
 	if err != nil {
-		respondWithError(writer, http.StatusInternalServerError, "could not start the ozone timer", err)
+		utils.RespondWithError(writer, http.StatusInternalServerError, "could not start the ozone timer", err)
 		return
 	}
 
 	response := databaseJobToOzoneJob(job)
-	respondWithJSON(writer, http.StatusCreated, response)
+	utils.RespondWithJSON(writer, http.StatusCreated, response)
 }
 
-func (config *serverConfig) handlerOzoneStop(writer http.ResponseWriter, req *http.Request) {
+func (h *Handler) handlerOzoneStop(writer http.ResponseWriter, _ *http.Request) {
 	slog.Debug("handlerStopOzone")
 
-	err := config.JobManager.CancelJob(jobs.JOBTYPE_OZONE_TIMER)
+	err := h.manager.CancelJob(jobs.JOBTYPE_OZONE_TIMER)
 	if err != nil {
-		respondWithError(writer, http.StatusNotModified, "could not stop the ozone job", err)
+		utils.RespondWithError(writer, http.StatusNotModified, "could not stop the ozone job", err)
 		return
 	}
 
-	respondWithNoContent(writer, http.StatusNoContent)
+	utils.RespondWithNoContent(writer, http.StatusNoContent)
 }
 
 func runOzoneFunc(config *jobs.JobConfig, ctx context.Context, cancel context.CancelFunc, jobId uuid.UUID) {
@@ -116,5 +133,4 @@ func runOzoneFunc(config *jobs.JobConfig, ctx context.Context, cancel context.Ca
 
 		}
 	}
-
 }

@@ -10,6 +10,9 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
+	"github.com/KyleBrandon/plunger-server/services/health"
+	"github.com/KyleBrandon/plunger-server/services/ozone"
+	"github.com/KyleBrandon/plunger-server/services/users"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 )
@@ -38,13 +41,17 @@ func main() {
 	config.StartMonitoringLeaks()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/health", config.handlerHealthGet)
-	mux.HandleFunc("POST /v1/users", config.handlerUserCreate)
-	mux.HandleFunc("GET /v1/users", config.handlerUserGet)
+
+	healthHandler := health.NewHandler()
+	healthHandler.RegisterRoutes(mux)
+
+	userHandler := users.NewHandler(config.DB)
+	userHandler.RegisterRoutes(mux)
+
+	ozoneHandler := ozone.NewHandler(config.JobManager, config.DB)
+	ozoneHandler.RegisterRoutes(mux)
+
 	mux.HandleFunc("GET /v1/temperatures", config.handlerTemperaturesGet)
-	mux.HandleFunc("GET /v1/ozone", config.handlerOzoneGet)
-	mux.HandleFunc("POST /v1/ozone/start", config.handlerOzoneStart)
-	mux.HandleFunc("POST /v1/ozone/stop", config.handlerOzoneStop)
 	mux.HandleFunc("GET /v1/leaks", config.handlerLeakGet)
 	mux.HandleFunc("GET /v1/pump", config.handlerPumpGet)
 	mux.HandleFunc("POST /v1/pump/start", config.handlerPumpStart)
@@ -54,6 +61,10 @@ func main() {
 	mux.HandleFunc("POST /v1/plunges", config.handlePlungesStart)
 	mux.HandleFunc("PUT /v1/plunges/{PLUNGE_ID}", config.handlePlungesStop)
 
+	config.runServer(mux)
+}
+
+func (config *serverConfig) runServer(mux *http.ServeMux) {
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),
 		Handler: mux,
