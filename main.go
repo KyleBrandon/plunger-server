@@ -26,7 +26,7 @@ type serverConfig struct {
 	DatabaseURL string
 	Sensors     sensor.SensorConfig
 	DB          *database.Queries
-	JobManager  *jobs.JobConfig
+	JobManager  jobs.JobManager
 }
 
 func main() {

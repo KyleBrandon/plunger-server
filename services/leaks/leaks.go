@@ -35,7 +35,7 @@ func BuildLeakEventsFromEvents(events []database.Event) ([]LeakEvent, error) {
 	return leakEvents, nil
 }
 
-func NewHandler(manager *jobs.JobConfig, store LeakStore) *Handler {
+func NewHandler(manager jobs.JobManager, store LeakStore) *Handler {
 	h := Handler{}
 	h.store = store
 	h.manager = manager

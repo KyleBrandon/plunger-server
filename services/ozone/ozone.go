@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func NewHandler(manager *jobs.JobConfig, store jobs.JobStore) *Handler {
+func NewHandler(manager jobs.JobManager, store jobs.JobStore) *Handler {
 	return &Handler{
 		manager: manager,
 		store:   store,

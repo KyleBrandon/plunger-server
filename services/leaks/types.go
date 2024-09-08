@@ -30,6 +30,6 @@ type LeakStore interface {
 
 type Handler struct {
 	store            LeakStore
-	manager          *jobs.JobConfig
+	manager          jobs.JobManager
 	leakMonitorJobId uuid.UUID
 }

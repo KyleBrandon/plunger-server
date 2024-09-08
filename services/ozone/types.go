@@ -18,6 +18,6 @@ type OzoneJob struct {
 }
 
 type Handler struct {
-	manager *jobs.JobConfig
+	manager jobs.JobManager
 	store   jobs.JobStore
 }

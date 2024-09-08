@@ -37,6 +37,15 @@ type JobStore interface {
 	GetLatestJobByType(ctx context.Context, jobType int32) (database.Job, error)
 }
 
+type JobManager interface {
+	StartJobWithTimeout(execute JobFunc, jobType int32, timeoutPeriod time.Duration) (*database.Job, error)
+	GetRunningJob(jobType int32) (*database.Job, error)
+	StartJob(execute JobFunc, jobType int32) (*database.Job, error)
+	CancelJob(jobType int32) error
+	StopJob(jobType int32, result string) error
+	IsJobCanceled(jobId uuid.UUID) bool
+}
+
 // Function signature used to define a job to run
 type JobFunc func(*JobConfig, context.Context, context.CancelFunc, uuid.UUID)
 
@@ -47,7 +56,7 @@ type JobConfig struct {
 	SensorConfig sensor.SensorConfig
 }
 
-func NewJobConfig(DB JobStore, sc sensor.SensorConfig) *JobConfig {
+func NewJobConfig(DB JobStore, sc sensor.SensorConfig) JobManager {
 	return &JobConfig{
 		DB:           DB,
 		mux:          &sync.Mutex{},
