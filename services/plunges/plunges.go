@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
@@ -56,7 +57,6 @@ func NewHandler(store PlungeStore, sensors Sensors) *Handler {
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/plunges", h.handlePlungesGet)
-	mux.HandleFunc("GET /v1/plunges/{PLUNGE_ID}", h.handlePlungesGet)
 	mux.HandleFunc("POST /v1/plunges", h.handlePlungesStart)
 	mux.HandleFunc("PUT /v1/plunges/{PLUNGE_ID}", h.handlePlungesStop)
 }
@@ -65,16 +65,20 @@ func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesGet")
 	dbPlunges := make([]database.Plunge, 0)
 
-	plungeID := r.PathValue("PLUNGE_ID")
-	if plungeID != "" {
+	// TODO: support appropriate get all and get w/id
+	plungeID := strings.TrimPrefix(r.URL.Path, "/v1/plunges/")
+	slog.Info("check plunge id", "plungeID", plungeID)
+	if plungeID != "" && plungeID != r.URL.Path {
 		pid, err := uuid.Parse(plungeID)
 		if err != nil {
+			slog.Info("invalid plunge id")
 			utils.RespondWithError(w, http.StatusNotFound, "could not find plunge", err)
 			return
 		}
 
 		p, err := h.store.GetPlungeByID(r.Context(), pid)
 		if err != nil {
+			slog.Info("could not get plunge by id")
 			utils.RespondWithError(w, http.StatusNotFound, "could not find plunge", err)
 			return
 		}

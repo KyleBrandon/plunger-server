@@ -9,13 +9,12 @@ import (
 )
 
 func TestPumpStatusIsOn(t *testing.T) {
-	pumpSensor := mockPumpSensor{
-		on:  true,
-		err: nil,
-	}
-	handler := NewHandler(&pumpSensor)
-
 	t.Run("should return pump is on", func(t *testing.T) {
+		pumpSensor := mockPumpSensor{
+			on:  true,
+			err: nil,
+		}
+		handler := NewHandler(&pumpSensor)
 		pumpSensor.err = nil
 
 		rr := utils.TestRequest(t, http.MethodGet, "/v1/pump", nil, handler.handlerPumpGet)
@@ -26,6 +25,11 @@ func TestPumpStatusIsOn(t *testing.T) {
 	})
 
 	t.Run("should fail pump is on", func(t *testing.T) {
+		pumpSensor := mockPumpSensor{
+			on:  true,
+			err: nil,
+		}
+		handler := NewHandler(&pumpSensor)
 		pumpSensor.err = errors.New("failed to start pump")
 
 		rr := utils.TestRequest(t, http.MethodGet, "/v1/pump", nil, handler.handlerPumpGet)
@@ -37,13 +41,12 @@ func TestPumpStatusIsOn(t *testing.T) {
 }
 
 func TestPumpPower(t *testing.T) {
-	pumpSensor := mockPumpSensor{
-		on:  true,
-		err: nil,
-	}
-	handler := NewHandler(&pumpSensor)
-
 	t.Run("should turn pump on", func(t *testing.T) {
+		pumpSensor := mockPumpSensor{
+			on:  true,
+			err: nil,
+		}
+		handler := NewHandler(&pumpSensor)
 		pumpSensor.err = nil
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v1/pump", nil, handler.handlerPumpStart)
@@ -54,6 +57,11 @@ func TestPumpPower(t *testing.T) {
 	})
 
 	t.Run("should fail to turn pump on", func(t *testing.T) {
+		pumpSensor := mockPumpSensor{
+			on:  true,
+			err: nil,
+		}
+		handler := NewHandler(&pumpSensor)
 		pumpSensor.err = errors.New("failed")
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v1/pump", nil, handler.handlerPumpStart)
@@ -64,6 +72,11 @@ func TestPumpPower(t *testing.T) {
 	})
 
 	t.Run("should turn pump off", func(t *testing.T) {
+		pumpSensor := mockPumpSensor{
+			on:  true,
+			err: nil,
+		}
+		handler := NewHandler(&pumpSensor)
 		pumpSensor.err = nil
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v1/pump", nil, handler.handlerPumpStop)
@@ -74,6 +87,11 @@ func TestPumpPower(t *testing.T) {
 	})
 
 	t.Run("should fail to turn pump off", func(t *testing.T) {
+		pumpSensor := mockPumpSensor{
+			on:  true,
+			err: nil,
+		}
+		handler := NewHandler(&pumpSensor)
 		pumpSensor.err = errors.New("failed")
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v1/pump", nil, handler.handlerPumpStop)

@@ -51,6 +51,14 @@ func (store *jobStore) GetRunningJobsByType(ctx context.Context, jobType int32) 
 	return nil, errors.New("job not found")
 }
 
+func (store *jobStore) GetLatestJobByType(ctx context.Context, jobType int32) (database.Job, error) {
+	if store.Job.JobType == jobType {
+		return store.Job, nil
+	}
+
+	return database.Job{}, errors.New("job not found")
+}
+
 func (store *jobStore) UpdateCancelRequested(ctx context.Context, arg database.UpdateCancelRequestedParams) (database.Job, error) {
 	if store.Job.ID == arg.ID {
 		store.Job.CancelRequested = arg.CancelRequested
