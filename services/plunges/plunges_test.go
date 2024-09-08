@@ -94,24 +94,23 @@ func TestPlungesGetAll(t *testing.T) {
 		}
 	})
 
-	// TODO: Fix this test
-	// t.Run("get current plunge", func(t *testing.T) {
-	// 	store := mockPlungeStore{}
-	// 	sensors := mockSensors{}
-	//
-	// 	handler := NewHandler(&store, &sensors)
-	// 	store.plunge.ID = uuid.New()
-	//
-	// 	rr := utils.TestRequest(t, http.MethodGet, "/v1/plunges?filter=current", nil, handler.handlePlungesGet)
-	//
-	// 	if rr.Code != http.StatusOK {
-	// 		t.Errorf("expected status code %d, got %d", http.StatusOK, rr.Code)
-	// 	}
-	//
-	// 	if !strings.Contains(rr.Body.String(), store.plunge.ID.String()) {
-	// 		t.Errorf("received error %s", rr.Body.String())
-	// 	}
-	// })
+	t.Run("get current plunge", func(t *testing.T) {
+		store := mockPlungeStore{}
+		sensors := mockSensors{}
+
+		handler := NewHandler(&store, &sensors)
+		store.plunge.ID = uuid.New()
+
+		rr := utils.TestRequest(t, http.MethodGet, "/v1/plunges?filter=current", nil, handler.handlePlungesGet)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected status code %d, got %d", http.StatusOK, rr.Code)
+		}
+
+		if !strings.Contains(rr.Body.String(), store.plunge.ID.String()) {
+			t.Errorf("received error %s", rr.Body.String())
+		}
+	})
 }
 
 type mockPlungeStore struct {

@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,14 +13,11 @@ func TestRequest(t *testing.T, method string, url string, body io.Reader, handle
 		t.Fatal(err)
 	}
 
-	rr := httptest.NewRecorder()
-	router := http.NewServeMux()
+	w := httptest.NewRecorder()
 
-	router.HandleFunc(fmt.Sprintf("%s %s", method, url), handler)
+	handler(w, req)
 
-	router.ServeHTTP(rr, req)
-
-	return rr
+	return w
 }
 
 func TestRequestWithHeaders(t *testing.T, method string, url string, headers map[string][]string, body io.Reader, handler func(http.ResponseWriter, *http.Request)) *httptest.ResponseRecorder {
@@ -36,12 +32,8 @@ func TestRequestWithHeaders(t *testing.T, method string, url string, headers map
 		}
 	}
 
-	rr := httptest.NewRecorder()
-	router := http.NewServeMux()
+	w := httptest.NewRecorder()
+	handler(w, req)
 
-	router.HandleFunc(fmt.Sprintf("%s %s", method, url), handler)
-
-	router.ServeHTTP(rr, req)
-
-	return rr
+	return w
 }

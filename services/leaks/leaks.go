@@ -66,13 +66,13 @@ func (h *Handler) handlerLeakGet(w http.ResponseWriter, r *http.Request) {
 
 	leakEvents := make([]database.Event, 0)
 
-	filter := r.URL.Query().Get("filter")
 	// TODO: Break this up and have a separate handler for one leak vs multiple
+	filter := r.URL.Query().Get("filter")
 	if filter == "current" {
 
 		leak, err := h.store.GetLatestEventByType(context.Background(), EVENTTYPE_LEAK)
 		if err != nil {
-			utils.RespondWithError(w, http.StatusNotFound, "could not read lead event", err)
+			utils.RespondWithError(w, http.StatusNotFound, "could not find the current leak event", err)
 			return
 		}
 
@@ -85,7 +85,7 @@ func (h *Handler) handlerLeakGet(w http.ResponseWriter, r *http.Request) {
 		}
 		leaks, err := h.store.GetEventsByType(r.Context(), params)
 		if err != nil {
-			utils.RespondWithError(w, http.StatusInternalServerError, "failed to read the leak events", err)
+			utils.RespondWithError(w, http.StatusNotFound, "failed to read all leaks", err)
 			return
 		}
 
@@ -94,7 +94,7 @@ func (h *Handler) handlerLeakGet(w http.ResponseWriter, r *http.Request) {
 
 	response, err := BuildLeakEventsFromEvents(leakEvents)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusNotFound, "could not read the leak events", err)
+		utils.RespondWithError(w, http.StatusNotFound, "invalid leaks", err)
 		return
 	}
 
