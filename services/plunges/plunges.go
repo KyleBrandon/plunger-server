@@ -1,4 +1,4 @@
-package main
+package plunges
 
 import (
 	"database/sql"
@@ -6,28 +6,15 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
+	"github.com/KyleBrandon/plunger-server/utils"
 	"github.com/google/uuid"
 )
 
-type PlungeResponse struct {
-	ID             uuid.UUID `json:"id,omitempty"`
-	CreatedAt      time.Time `json:"created_at,omitempty"`
-	UpdatedAt      time.Time `json:"updated_at,omitempty"`
-	StartTime      time.Time `json:"start_time,omitempty"`
-	EndTime        time.Time `json:"end_time,omitempty"`
-	Running        bool      `json:"running"`
-	ElapsedTime    float64   `json:"elapsed_time"`
-	StartRoomTemp  string    `json:"start_room_temp,omitempty"`
-	EndRoomTemp    string    `json:"end_room_temp,omitempty"`
-	StartWaterTemp string    `json:"start_water_temp,omitempty"`
-	EndWaterTemp   string    `json:"end_water_temp,omitempty"`
-}
-
 func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
-
 	resp := PlungeResponse{
 		ID:        dbPlunge.ID,
 		CreatedAt: dbPlunge.CreatedAt,
@@ -61,38 +48,55 @@ func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
 	return resp
 }
 
-func (config *serverConfig) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
+func NewHandler(store PlungeStore, sensors Sensors) *Handler {
+	return &Handler{
+		store,
+		sensors,
+	}
+}
+
+func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v1/plunges", h.handlePlungesGet)
+	mux.HandleFunc("POST /v1/plunges", h.handlePlungesStart)
+	mux.HandleFunc("PUT /v1/plunges/{PLUNGE_ID}", h.handlePlungesStop)
+}
+
+func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesGet")
 	dbPlunges := make([]database.Plunge, 0)
 
-	plungeID := r.PathValue("PLUNGE_ID")
-	if plungeID != "" {
+	// TODO: support appropriate get all and get w/id
+	plungeID := strings.TrimPrefix(r.URL.Path, "/v1/plunges/")
+	slog.Info("check plunge id", "plungeID", plungeID)
+	if plungeID != "" && plungeID != r.URL.Path {
 		pid, err := uuid.Parse(plungeID)
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "could not find plunge", err)
+			slog.Info("invalid plunge id")
+			utils.RespondWithError(w, http.StatusNotFound, "could not find plunge", err)
 			return
 		}
 
-		p, err := config.DB.GetPlungeByID(r.Context(), pid)
+		p, err := h.store.GetPlungeByID(r.Context(), pid)
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "could not find plunge", err)
+			slog.Info("could not get plunge by id")
+			utils.RespondWithError(w, http.StatusNotFound, "could not find plunge", err)
 			return
 		}
 		dbPlunges = append(dbPlunges, p)
 	} else {
 		filter := r.URL.Query().Get("filter")
 		if filter == "current" {
-			p, err := config.DB.GetLatestPlunge(r.Context())
+			p, err := h.store.GetLatestPlunge(r.Context())
 			if err != nil {
-				respondWithError(w, http.StatusNotFound, "could not find a current plunge", err)
+				utils.RespondWithError(w, http.StatusNotFound, "could not find a current plunge", err)
 				return
 			}
 
 			dbPlunges = append(dbPlunges, p)
 		} else {
-			p, err := config.DB.GetPlunges(r.Context())
+			p, err := h.store.GetPlunges(r.Context())
 			if err != nil {
-				respondWithError(w, http.StatusNotFound, "could not find any plunges", err)
+				utils.RespondWithError(w, http.StatusNotFound, "could not find any plunges", err)
 				return
 			}
 
@@ -105,15 +109,15 @@ func (config *serverConfig) handlePlungesGet(w http.ResponseWriter, r *http.Requ
 		plunges = append(plunges, databasePlungeToPlunge(p))
 	}
 
-	respondWithJSON(w, http.StatusOK, plunges)
+	utils.RespondWithJSON(w, http.StatusOK, plunges)
 }
 
-func (config *serverConfig) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesStart")
 
-	temperatures, err := config.Sensors.ReadTemperatures()
+	temperatures, err := h.sensors.ReadTemperatures()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
 		return
 	}
 
@@ -136,32 +140,32 @@ func (config *serverConfig) handlePlungesStart(w http.ResponseWriter, r *http.Re
 		StartRoomTemp:  roomTemp,
 	}
 
-	plunge, err := config.DB.StartPlunge(r.Context(), params)
+	plunge, err := h.store.StartPlunge(r.Context(), params)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
 		return
 	}
 
-	respondWithJSON(w, http.StatusCreated, databasePlungeToPlunge(plunge))
+	utils.RespondWithJSON(w, http.StatusCreated, databasePlungeToPlunge(plunge))
 }
 
-func (config *serverConfig) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesStop")
 
 	plungeID := r.PathValue("PLUNGE_ID")
 	if plungeID == "" {
-		respondWithError(w, http.StatusNotFound, "could not find plunge", errors.New("plunge id path value not set"))
+		utils.RespondWithError(w, http.StatusNotFound, "could not find plunge", errors.New("plunge id path value not set"))
 		return
 	}
 	pid, err := uuid.Parse(plungeID)
 	if err != nil {
-		respondWithError(w, http.StatusNotFound, "could not find plunge", err)
+		utils.RespondWithError(w, http.StatusNotFound, "could not find plunge", err)
 		return
 	}
 
-	temperatures, err := config.Sensors.ReadTemperatures()
+	temperatures, err := h.sensors.ReadTemperatures()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
 		return
 	}
 
@@ -185,11 +189,11 @@ func (config *serverConfig) handlePlungesStop(w http.ResponseWriter, r *http.Req
 		EndRoomTemp:  roomTemp,
 	}
 
-	_, err = config.DB.StopPlunge(r.Context(), params)
+	_, err = h.store.StopPlunge(r.Context(), params)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
 		return
 	}
 
-	respondWithNoContent(w, http.StatusNoContent)
+	utils.RespondWithNoContent(w, http.StatusNoContent)
 }

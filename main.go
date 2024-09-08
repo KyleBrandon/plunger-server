@@ -10,19 +10,23 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
-	"github.com/google/uuid"
+	"github.com/KyleBrandon/plunger-server/services/health"
+	"github.com/KyleBrandon/plunger-server/services/leaks"
+	"github.com/KyleBrandon/plunger-server/services/ozone"
+	"github.com/KyleBrandon/plunger-server/services/plunges"
+	"github.com/KyleBrandon/plunger-server/services/pump"
+	"github.com/KyleBrandon/plunger-server/services/users"
 	_ "github.com/lib/pq"
 )
 
 const CONFIG_FILENAME string = "config.json"
 
 type serverConfig struct {
-	ServerPort       string
-	DatabaseURL      string
-	Sensors          sensor.SensorConfig
-	DB               *database.Queries
-	JobManager       *jobs.JobConfig
-	LeakMonitorJobId uuid.UUID
+	ServerPort  string
+	DatabaseURL string
+	Sensors     sensor.SensorConfig
+	DB          *database.Queries
+	JobManager  *jobs.JobConfig
 }
 
 func main() {
@@ -35,25 +39,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	config.StartMonitoringLeaks()
-
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/health", config.handlerHealthGet)
-	mux.HandleFunc("POST /v1/users", config.handlerUserCreate)
-	mux.HandleFunc("GET /v1/users", config.handlerUserGet)
-	mux.HandleFunc("GET /v1/temperatures", config.handlerTemperaturesGet)
-	mux.HandleFunc("GET /v1/ozone", config.handlerOzoneGet)
-	mux.HandleFunc("POST /v1/ozone/start", config.handlerOzoneStart)
-	mux.HandleFunc("POST /v1/ozone/stop", config.handlerOzoneStop)
-	mux.HandleFunc("GET /v1/leaks", config.handlerLeakGet)
-	mux.HandleFunc("GET /v1/pump", config.handlerPumpGet)
-	mux.HandleFunc("POST /v1/pump/start", config.handlerPumpStart)
-	mux.HandleFunc("POST /v1/pump/stop", config.handlerPumpStop)
-	mux.HandleFunc("GET /v1/plunges", config.handlePlungesGet)
-	mux.HandleFunc("GET /v1/plunges/{PLUNGE_ID}", config.handlePlungesGet)
-	mux.HandleFunc("POST /v1/plunges", config.handlePlungesStart)
-	mux.HandleFunc("PUT /v1/plunges/{PLUNGE_ID}", config.handlePlungesStop)
 
+	healthHandler := health.NewHandler()
+	healthHandler.RegisterRoutes(mux)
+
+	userHandler := users.NewHandler(config.DB)
+	userHandler.RegisterRoutes(mux)
+
+	ozoneHandler := ozone.NewHandler(config.JobManager, config.DB)
+	ozoneHandler.RegisterRoutes(mux)
+
+	leakHandler := leaks.NewHandler(config.JobManager, config.DB)
+	leakHandler.RegisterRoutes(mux)
+	leakHandler.StartMonitoringLeaks()
+
+	pumpHandler := pump.NewHandler(&config.Sensors)
+	pumpHandler.RegisterRoutes(mux)
+
+	plungesHandler := plunges.NewHandler(config.DB, &config.Sensors)
+	plungesHandler.RegisterRoutes(mux)
+
+	config.runServer(mux)
+}
+
+func (config *serverConfig) runServer(mux *http.ServeMux) {
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),
 		Handler: mux,

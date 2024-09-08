@@ -34,6 +34,7 @@ type JobStore interface {
 	UpdateCancelRequested(ctx context.Context, arg database.UpdateCancelRequestedParams) (database.Job, error)
 	UpdateJob(ctx context.Context, arg database.UpdateJobParams) (database.Job, error)
 	CreateEvent(ctx context.Context, arg database.CreateEventParams) (database.Event, error)
+	GetLatestJobByType(ctx context.Context, jobType int32) (database.Job, error)
 }
 
 // Function signature used to define a job to run
@@ -47,7 +48,6 @@ type JobConfig struct {
 }
 
 func NewJobConfig(DB JobStore, sc sensor.SensorConfig) *JobConfig {
-
 	return &JobConfig{
 		DB:           DB,
 		mux:          &sync.Mutex{},
@@ -58,7 +58,6 @@ func NewJobConfig(DB JobStore, sc sensor.SensorConfig) *JobConfig {
 var ErrJobNotFound = errors.New("job was not found")
 
 func (config *JobConfig) GetRunningJob(jobType int32) (*database.Job, error) {
-
 	ctx := context.Background()
 
 	ozoneJobs, err := config.DB.GetRunningJobsByType(ctx, jobType)
@@ -79,7 +78,6 @@ func (config *JobConfig) GetRunningJob(jobType int32) (*database.Job, error) {
 }
 
 func (config *JobConfig) StartJobWithTimeout(execute JobFunc, jobType int32, timeoutPeriod time.Duration) (*database.Job, error) {
-
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx, cancel = context.WithTimeout(ctx, timeoutPeriod)
 

@@ -1,4 +1,4 @@
-package main
+package leaks
 
 import (
 	"context"
@@ -9,10 +9,59 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
+	"github.com/KyleBrandon/plunger-server/utils"
 	"github.com/google/uuid"
 )
 
-func (config *serverConfig) handlerLeakGet(w http.ResponseWriter, r *http.Request) {
+func BuildLeakEventsFromEvents(events []database.Event) ([]LeakEvent, error) {
+	leakEvents := make([]LeakEvent, 0, len(events))
+
+	for _, event := range events {
+		var dbLeakEvent DbLeakEvent
+		err := json.Unmarshal(event.EventData, &dbLeakEvent)
+		if err != nil {
+			slog.Error("failed to deserialize the leak event", "error", err)
+			return nil, err
+		}
+
+		leakEvent := LeakEvent{
+			UpdatedAt:    dbLeakEvent.EventTime,
+			LeakDetected: dbLeakEvent.CurrentState,
+		}
+
+		leakEvents = append(leakEvents, leakEvent)
+	}
+
+	return leakEvents, nil
+}
+
+func NewHandler(manager *jobs.JobConfig, store LeakStore) *Handler {
+	h := Handler{}
+	h.store = store
+	h.manager = manager
+
+	return &h
+}
+
+func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v1/leaks", h.handlerLeakGet)
+}
+
+func (h *Handler) StartMonitoringLeaks() error {
+	slog.Debug("StartMonitoringLeaks")
+
+	job, err := h.manager.StartJob(runLeakDetectionFunc, jobs.JOBTYPE_LEAK_MONITOR)
+	if err != nil {
+		slog.Error("failed to start monitoring job for leaks", "error", err)
+		return err
+	}
+
+	h.leakMonitorJobId = job.ID
+
+	return nil
+}
+
+func (h *Handler) handlerLeakGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlerGetLeak")
 
 	leakEvents := make([]database.Event, 0)
@@ -21,9 +70,9 @@ func (config *serverConfig) handlerLeakGet(w http.ResponseWriter, r *http.Reques
 	// TODO: Break this up and have a separate handler for one leak vs multiple
 	if filter == "current" {
 
-		leak, err := config.DB.GetLatestEventByType(context.Background(), EVENTTYPE_LEAK)
+		leak, err := h.store.GetLatestEventByType(context.Background(), EVENTTYPE_LEAK)
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "could not read lead event", err)
+			utils.RespondWithError(w, http.StatusNotFound, "could not read lead event", err)
 			return
 		}
 
@@ -34,9 +83,9 @@ func (config *serverConfig) handlerLeakGet(w http.ResponseWriter, r *http.Reques
 			EventType: EVENTTYPE_LEAK,
 			Limit:     100,
 		}
-		leaks, err := config.DB.GetEventsByType(r.Context(), params)
+		leaks, err := h.store.GetEventsByType(r.Context(), params)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "failed to read the leak events", err)
+			utils.RespondWithError(w, http.StatusInternalServerError, "failed to read the leak events", err)
 			return
 		}
 
@@ -45,26 +94,11 @@ func (config *serverConfig) handlerLeakGet(w http.ResponseWriter, r *http.Reques
 
 	response, err := BuildLeakEventsFromEvents(leakEvents)
 	if err != nil {
-		respondWithError(w, http.StatusNotFound, "could not read the leak events", err)
+		utils.RespondWithError(w, http.StatusNotFound, "could not read the leak events", err)
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, response)
-
-}
-
-func (config *serverConfig) StartMonitoringLeaks() error {
-	slog.Debug("StartMonitoringLeaks")
-
-	job, err := config.JobManager.StartJob(runLeakDetectionFunc, jobs.JOBTYPE_LEAK_MONITOR)
-	if err != nil {
-		slog.Error("failed to start monitoring job for leaks", "error", err)
-		return err
-	}
-
-	config.LeakMonitorJobId = job.ID
-
-	return nil
+	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
 func runLeakDetectionFunc(config *jobs.JobConfig, ctx context.Context, cancel context.CancelFunc, jobId uuid.UUID) {
@@ -134,5 +168,4 @@ func runLeakDetectionFunc(config *jobs.JobConfig, ctx context.Context, cancel co
 
 		}
 	}
-
 }
