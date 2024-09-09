@@ -18,8 +18,19 @@ jobs:
     runs-on: self-hosted
 
     steps:
+      - name: Checkout repository
       - uses: actions/checkout@v2
-      - name: Run script
+
+      - name: Stop currently running server
         run: |
-          echo Hello RPI!
-          ls
+          sudo systemctl stop plunge-server.service
+        if: success()
+
+      - name: Build the server
+        run: |
+          go build -o ~/plunger/plunger-server
+
+      - name: Start the server
+        run: |
+          sudo systemctl start plunge-server.service
+        if: success()
