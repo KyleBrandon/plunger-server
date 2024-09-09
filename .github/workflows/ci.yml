@@ -23,7 +23,7 @@ jobs:
 
       - name: Stop currently running server
         run: |
-          sudo systemctl stop plunge-server.service
+          sudo systemctl stop plunge-server.service || [[ $? == 5 ]] || true
         if: success()
 
       - name: Build the server
