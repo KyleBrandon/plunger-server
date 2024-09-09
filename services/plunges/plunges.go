@@ -67,7 +67,6 @@ func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: support appropriate get all and get w/id
 	plungeID := strings.TrimPrefix(r.URL.Path, "/v1/plunges/")
-	slog.Info("check plunge id", "plungeID", plungeID)
 	if plungeID != "" && plungeID != r.URL.Path {
 		pid, err := uuid.Parse(plungeID)
 		if err != nil {

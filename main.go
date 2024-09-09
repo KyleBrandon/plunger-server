@@ -15,7 +15,9 @@ import (
 	"github.com/KyleBrandon/plunger-server/services/ozone"
 	"github.com/KyleBrandon/plunger-server/services/plunges"
 	"github.com/KyleBrandon/plunger-server/services/pump"
+	"github.com/KyleBrandon/plunger-server/services/temperatures"
 	"github.com/KyleBrandon/plunger-server/services/users"
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
@@ -60,6 +62,9 @@ func main() {
 	plungesHandler := plunges.NewHandler(config.DB, &config.Sensors)
 	plungesHandler.RegisterRoutes(mux)
 
+	temperatureHandler := temperatures.NewHandler(&config.Sensors)
+	temperatureHandler.RegisterRoutes(mux)
+
 	config.runServer(mux)
 }
 
@@ -88,9 +93,19 @@ func initializeServerConfig() (serverConfig, error) {
 		os.Exit(1)
 	}
 
+	// read the database URL and serer port from the environment
+	err = godotenv.Load()
+	if err != nil {
+		slog.Error("error loading .env file", "error", err)
+		os.Exit(1)
+	}
+
+	databaseURL := os.Getenv("DATABASE_URL")
+	serverPort := os.Getenv("PORT")
+
 	sc := serverConfig{
-		ServerPort:  configSettings.ServerPort,
-		DatabaseURL: configSettings.DatabaseURL,
+		ServerPort:  serverPort,
+		DatabaseURL: databaseURL,
 		Sensors:     sensorConfig,
 	}
 

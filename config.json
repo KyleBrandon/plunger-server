@@ -1,6 +1,4 @@
 {
-  "server_port": "8080",
-  "database_url": "postgres://postgres:postgres@10.0.4.40:5444/plunger?sslmode=disable",
   "sensor_timeout_seconds": 5,
   "ozone_run_duration": "1h",
   "devices": [
