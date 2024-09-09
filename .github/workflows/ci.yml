@@ -23,7 +23,7 @@ jobs:
 
       - name: Stop currently running server
         run: |
-          sudo systemctl stop plunge-server.service || [[ $? == 5 ]] || true
+          sudo systemctl stop plunger-server.service || [[ $? == 5 ]] || true
         if: success()
 
       - name: Build the server
@@ -32,5 +32,5 @@ jobs:
 
       - name: Start the server
         run: |
-          sudo systemctl start plunge-server.service
+          sudo systemctl start plunger-server.service
         if: success()
