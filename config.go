@@ -9,8 +9,6 @@ import (
 )
 
 type Config struct {
-	ServerPort           string                `json:"server_port"`
-	DatabaseURL          string                `json:"database_url"`
 	Devices              []sensor.DeviceConfig `json:"devices"`
 	SensorTimeoutSeconds int                   `json:"sensor_timeout_seconds"`
 }
@@ -36,5 +34,4 @@ func LoadConfigFile(filename string) (Config, error) {
 	}
 
 	return config, nil
-
 }

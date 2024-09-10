@@ -18,19 +18,63 @@ jobs:
     runs-on: self-hosted
 
     steps:
+      # Checkout the code
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Stop currently running server
+      # Setup up Go
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.22"
+
+      - name: Stop currently running server if installed as a service
         run: |
           sudo systemctl stop plunger-server.service || [[ $? == 5 ]] || true
         if: success()
 
       - name: Build the server
         run: |
-          go build -o ~/plunger/plunger-server
+          go build -o plunger-server
 
-      - name: Start the server
+      - name: Create .env file
         run: |
-          sudo systemctl start plunger-server.service
-        if: success()
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL}}" > ~/plunger/.env
+          echo "PORT=$PORT" >> ~/plunger/.env
+
+      # set up Docker Buildx to build cross platform-builds
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # build Docker image for Raspberry Pi
+      - name: Build Docker image
+        run: |
+          docker build \
+            --platform linux/arm/v7 \
+            --build-arg DATABASE_URL=${{ secrets.DATABASE_URL }} \
+            --build-arg PORT=$PORT \
+            -t kylebrandon/plunger-server:latest .
+
+      # - name: Start the server
+      #   run: |
+      #     sudo systemctl start plunger-server.service
+      #   if: success()
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    steps:
+      # Stop and remove the existing container
+      - name: Stop and Remove Existing Docker Container
+        run: |
+          docker stop plunger-server || true
+          docker rm plunger-server || true
+
+      # Deploy Docker container
+      - name: Run Docker Container
+        run: |
+          docker run --privileged -d --name plunger-server \
+            -e DATABASE_URL=${{ secrets.DATABASE_URL }} \
+            -e PORT=$PORT \
+            -p $PORT:$PORT \
+            kylebrandon/plunger-server:latest
