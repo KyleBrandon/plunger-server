@@ -40,7 +40,7 @@ jobs:
       - name: Create .env file
         run: |
           echo "DATABASE_URL=${{ secrets.DATABASE_URL}}" > ~/plunger/.env
-          echo "PORT=$PORT" >> ~/plunger/.env
+          echo "PORT=${{ secrets.PORT }}" >> ~/plunger/.env
 
       # set up Docker Buildx to build cross platform-builds
       - name: Set up Docker Buildx
@@ -52,7 +52,7 @@ jobs:
           docker build \
             --platform linux/arm/v7 \
             --build-arg DATABASE_URL=${{ secrets.DATABASE_URL }} \
-            --build-arg PORT=$PORT \
+            --build-arg PORT=${{ secrets.PORT }} \
             -t kylebrandon/plunger-server:latest .
 
       # - name: Start the server
@@ -75,6 +75,6 @@ jobs:
         run: |
           docker run --privileged -d --name plunger-server \
             -e DATABASE_URL=${{ secrets.DATABASE_URL }} \
-            -e PORT=$PORT \
-            -p $PORT:$PORT \
+            -e PORT=${{ secrets.PORT }} \
+            -p ${{ secrets.PORT }}:${{ secrets.PORT }} \
             kylebrandon/plunger-server:latest
