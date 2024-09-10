@@ -18,5 +18,6 @@ COPY plunger-server .
 EXPOSE ${PORT}
 
 # Run the binary and pass in the necessary environment variables
-CMD ["./plunger-server"]
+# CMD ["./plunger-server"]
 
+CMD ["/bin/bash"]
