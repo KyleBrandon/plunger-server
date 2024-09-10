@@ -20,4 +20,4 @@ EXPOSE ${PORT}
 # Run the binary and pass in the necessary environment variables
 # CMD ["./plunger-server"]
 
-CMD ["/bin/sh"]
+CMD ["/bin/sh", "-i"]
