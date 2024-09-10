@@ -73,7 +73,7 @@ jobs:
       # Deploy Docker container
       - name: Run Docker Container
         run: |
-          docker run --privileged -d --name plunger-server \
+          docker run --privileged -d --name plunger-server -it \
             -e DATABASE_URL=${{ secrets.DATABASE_URL }} \
             -e PORT=${{ vars.PORT }} \
             -p ${{ vars.PORT }}:${{ vars.PORT }} \
