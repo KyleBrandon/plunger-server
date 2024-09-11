@@ -96,8 +96,7 @@ func initializeServerConfig() (serverConfig, error) {
 	// read the database URL and serer port from the environment
 	err = godotenv.Load()
 	if err != nil {
-		slog.Error("error loading .env file", "error", err)
-		os.Exit(1)
+		slog.Warn("could not load .env file", "error", err)
 	}
 
 	databaseURL := os.Getenv("DATABASE_URL")
