@@ -34,7 +34,7 @@ WORKDIR /app
 
 # Copy the pre-built Go binary from the GitHub Action build step
 COPY --from=builder /plunger-server .
-COPY config.json /
+COPY --from=builder /config.json .
 
 # Expose the port for the Go web server
 EXPOSE ${PORT}
