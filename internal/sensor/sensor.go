@@ -50,7 +50,17 @@ type TemperatureReading struct {
 	Err          error   `json:"err,omitempty"`
 }
 
-func NewSensorConfig(sensorTimeout int, devices []DeviceConfig) (SensorConfig, error) {
+type Sensors interface {
+	ReadTemperatures() ([]TemperatureReading, error)
+	IsLeakPresent() (bool, error)
+	TurnOzoneOn() error
+	TurnOzoneOff() error
+	IsPumpOn() (bool, error)
+	TurnPumpOn() error
+	TurnPumpOff() error
+}
+
+func NewSensorConfig(sensorTimeout int, devices []DeviceConfig) (Sensors, error) {
 	slog.Debug("NewSensorConfig")
 	sc := SensorConfig{
 		SensorTimeout: time.Duration(sensorTimeout) * time.Second,
@@ -74,10 +84,9 @@ func NewSensorConfig(sensorTimeout int, devices []DeviceConfig) (SensorConfig, e
 				sc.OzoneDevice = d
 			}
 		}
-
 	}
 
-	return sc, nil
+	return &sc, nil
 }
 
 func readTemperatureSensor(device *DeviceConfig, wg *sync.WaitGroup, readings chan<- TemperatureReading) {

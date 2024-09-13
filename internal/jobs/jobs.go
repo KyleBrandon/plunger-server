@@ -53,10 +53,10 @@ type JobFunc func(*JobConfig, context.Context, context.CancelFunc, uuid.UUID)
 type JobConfig struct {
 	mux          *sync.Mutex
 	DB           JobStore
-	SensorConfig sensor.SensorConfig
+	SensorConfig sensor.Sensors
 }
 
-func NewJobConfig(DB JobStore, sc sensor.SensorConfig) JobManager {
+func NewJobConfig(DB JobStore, sc sensor.Sensors) JobManager {
 	return &JobConfig{
 		DB:           DB,
 		mux:          &sync.Mutex{},
