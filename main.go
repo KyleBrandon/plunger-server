@@ -26,7 +26,7 @@ const CONFIG_FILENAME string = "config.json"
 type serverConfig struct {
 	ServerPort  string
 	DatabaseURL string
-	Sensors     sensor.SensorConfig
+	Sensors     sensor.Sensors
 	DB          *database.Queries
 	JobManager  jobs.JobManager
 }
@@ -56,13 +56,13 @@ func main() {
 	leakHandler.RegisterRoutes(mux)
 	leakHandler.StartMonitoringLeaks()
 
-	pumpHandler := pump.NewHandler(&config.Sensors)
+	pumpHandler := pump.NewHandler(config.Sensors)
 	pumpHandler.RegisterRoutes(mux)
 
-	plungesHandler := plunges.NewHandler(config.DB, &config.Sensors)
+	plungesHandler := plunges.NewHandler(config.DB, config.Sensors)
 	plungesHandler.RegisterRoutes(mux)
 
-	temperatureHandler := temperatures.NewHandler(&config.Sensors)
+	temperatureHandler := temperatures.NewHandler(config.Sensors)
 	temperatureHandler.RegisterRoutes(mux)
 
 	config.runServer(mux)
