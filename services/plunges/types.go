@@ -8,7 +8,7 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/google/uuid"
-	"nhooyr.io/websocket"
+	"golang.org/x/net/websocket"
 )
 
 type PlungeResponse struct {

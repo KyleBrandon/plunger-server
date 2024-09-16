@@ -94,10 +94,8 @@ func readTemperatureSensor(device *DeviceConfig, wg *sync.WaitGroup, readings ch
 	defer wg.Done()
 
 	t, err := ds18b20.Temperature(device.Address)
-	slog.Info("read temperature", "room", device.Name, "temp", t)
 
 	t += device.CalibrationOffsetCelsius
-	slog.Info("callibrate temperature", "room", device.Name, "temp", t, "callibration_offset", device.CalibrationOffsetCelsius)
 
 	tr := TemperatureReading{
 		Name:         device.Name,

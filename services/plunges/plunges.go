@@ -3,6 +3,7 @@ package plunges
 import (
 	"database/sql"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -11,7 +12,7 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/utils"
 	"github.com/google/uuid"
-	"nhooyr.io/websocket"
+	"golang.org/x/net/websocket"
 )
 
 const DefaultPlungeDurationSeconds = "180"
@@ -27,6 +28,7 @@ func NewHandler(store PlungeStore, sensors Sensors) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.Handle("/v1/plunge/ws", websocket.Handler(h.handleWS))
 	mux.HandleFunc("GET /v1/plunge/status", h.handlePlungesGet)
 	mux.HandleFunc("POST /v1/plunge/start", h.handlePlungesStart)
 	mux.HandleFunc("PUT /v1/plunge/stop", h.handlePlungesStop)
@@ -177,38 +179,55 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithNoContent(w, http.StatusNoContent)
 }
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
+func (h *Handler) handleWS(ws *websocket.Conn) {
+	slog.Info("new incoming connection", "remote_addr", ws.RemoteAddr())
+
+	h.clients[ws] = true
+
+	h.readLoop(ws)
+
+	// conn, err := upgrader.Upgrade(w, r, nil)
+	// if err != nil {
+	// 	fmt.Printf("Failed to upgrade WebSocket connection: %v\n", err)
+	// 	return
+	// }
+	//
+	// // Add the new client
+	// h.clientsMu.Lock()
+	// h.clients[conn] = true
+	// h.clientsMu.Unlock()
+	//
+	// // Handle incoming messages (optional, not needed for this timer example)
+	// go func() {
+	// 	defer conn.Close()
+	// 	for {
+	// 		_, _, err := conn.ReadMessage()
+	// 		if err != nil {
+	// 			h.clientsMu.Lock()
+	// 			delete(h.clients, conn)
+	// 			h.clientsMu.Unlock()
+	// 			break
+	// 		}
+	// 	}
+	// }()
 }
 
-// WebSocket handler
-func (h *Handler) wsHandler(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		fmt.Printf("Failed to upgrade WebSocket connection: %v\n", err)
-		return
-	}
-
-	// Add the new client
-	h.clientsMu.Lock()
-	h.clients[conn] = true
-	h.clientsMu.Unlock()
-
-	// Handle incoming messages (optional, not needed for this timer example)
-	go func() {
-		defer conn.Close()
-		for {
-			_, _, err := conn.ReadMessage()
-			if err != nil {
-				h.clientsMu.Lock()
-				delete(h.clients, conn)
-				h.clientsMu.Unlock()
+func (h *Handler) readLoop(ws *websocket.Conn) {
+	buf := make([]byte, 1024)
+	for {
+		n, err := ws.Read(buf)
+		if err != nil {
+			if err == io.EOF {
 				break
 			}
+			slog.Info("read error", "error", err, "remote_addr", ws.RemoteAddr())
+			continue
 		}
-	}()
+
+		msg := buf[:n]
+		slog.Info(string(msg))
+		ws.Write([]byte("thank you for the message"))
+	}
 }
 
 func (h *Handler) broadcastToClients(status PlungeStatus) {
