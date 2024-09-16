@@ -39,7 +39,7 @@ type DeviceConfig struct {
 	Name                     string  `json:"name"`
 	Description              string  `json:"description"`
 	NormallyOn               bool    `json:"normally_on,omitempty"`
-	CalibrationOffsetCelsius float64 `json:"callibration_offset_celsius"`
+	CalibrationOffsetCelsius float64 `json:"calibration_offset_celsius"`
 }
 
 type TemperatureReading struct {
@@ -97,7 +97,7 @@ func readTemperatureSensor(device *DeviceConfig, wg *sync.WaitGroup, readings ch
 	slog.Info("read temperature", "room", device.Name, "temp", t)
 
 	t += device.CalibrationOffsetCelsius
-	slog.Info("callibrate temperature", "room", device.Name, "temp", t)
+	slog.Info("callibrate temperature", "room", device.Name, "temp", t, "callibration_offset", device.CalibrationOffsetCelsius)
 
 	tr := TemperatureReading{
 		Name:         device.Name,
