@@ -7,14 +7,16 @@
       "sensor_type": "temperature",
       "address": "28-0b2324d1b5ce",
       "name": "Water",
-      "description": "Temperature of the water"
+      "description": "Temperature of the water",
+      "calibration_offset_celsius": -1.67
     },
     {
       "driver_type": "DS18B20",
       "sensor_type": "temperature",
       "address": "28-5790d446025f",
       "name": "Room",
-      "description": "Temperature of the room"
+      "description": "Temperature of the room",
+      "calibration_offset_celsius": -1.11
     },
     {
       "driver_type": "GPIO",
