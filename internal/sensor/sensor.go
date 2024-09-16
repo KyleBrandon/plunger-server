@@ -33,12 +33,13 @@ type SensorConfig struct {
 }
 
 type DeviceConfig struct {
-	DriverType  string `json:"driver_type"`
-	SensorType  string `json:"sensor_type"`
-	Address     string `json:"address"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	NormallyOn  bool   `json:"normally_on,omitempty"`
+	DriverType               string  `json:"driver_type"`
+	SensorType               string  `json:"sensor_type"`
+	Address                  string  `json:"address"`
+	Name                     string  `json:"name"`
+	Description              string  `json:"description"`
+	NormallyOn               bool    `json:"normally_on,omitempty"`
+	CalibrationOffsetCelsius float64 `json:"callibration_offset_celsius"`
 }
 
 type TemperatureReading struct {
@@ -93,6 +94,8 @@ func readTemperatureSensor(device *DeviceConfig, wg *sync.WaitGroup, readings ch
 	defer wg.Done()
 
 	t, err := ds18b20.Temperature(device.Address)
+
+	t += device.CalibrationOffsetCelsius
 
 	tr := TemperatureReading{
 		Name:         device.Name,
