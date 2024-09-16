@@ -39,6 +39,7 @@ type PlungeStore interface {
 	GetPlungeByID(ctx context.Context, id uuid.UUID) (database.Plunge, error)
 	GetPlunges(ctx context.Context) ([]database.Plunge, error)
 	StartPlunge(ctx context.Context, arg database.StartPlungeParams) (database.Plunge, error)
+	UpdatePlungeStatus(ctx context.Context, arg database.UpdatePlungeStatusParams) (database.Plunge, error)
 	StopPlunge(ctx context.Context, arg database.StopPlungeParams) (database.Plunge, error)
 }
 

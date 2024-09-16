@@ -2,8 +2,8 @@ package plunges
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -75,7 +75,6 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// initalize the plunge context info
 	h.plungeMu.Lock()
 	defer h.plungeMu.Unlock()
 
@@ -85,18 +84,21 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 		StartRoomTemp:  sql.NullString{Valid: true, String: fmt.Sprintf("%f", roomTemp)},
 	}
 
+	// Save start to database
 	plunge, err := h.store.StartPlunge(r.Context(), params)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
 		return
 	}
 
+	// initalize the plunge context info
 	h.plungeID = plunge.ID
 	h.StartTime = time.Now().UTC()
 	h.Duration = time.Duration(duration) * time.Second
 	h.Running = true
 	h.ElapsedTime = 0
 
+	// start monitoring the plunge status
 	go h.monitorPlunge()
 
 	utils.RespondWithJSON(w, http.StatusCreated, databasePlungeToPlunge(plunge))
@@ -182,29 +184,20 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleWS(ws *websocket.Conn) {
 	slog.Info("new incoming connection", "remote_addr", ws.RemoteAddr())
 
+	// Add the new client
+	h.clientsMu.Lock()
 	h.clients[ws] = true
+	h.clientsMu.Unlock()
 
-	h.readLoop(ws)
-
-	// conn, err := upgrader.Upgrade(w, r, nil)
-	// if err != nil {
-	// 	fmt.Printf("Failed to upgrade WebSocket connection: %v\n", err)
-	// 	return
-	// }
-	//
-	// // Add the new client
-	// h.clientsMu.Lock()
-	// h.clients[conn] = true
-	// h.clientsMu.Unlock()
-	//
 	// // Handle incoming messages (optional, not needed for this timer example)
 	// go func() {
-	// 	defer conn.Close()
+	// 	defer ws.Close()
 	// 	for {
-	// 		_, _, err := conn.ReadMessage()
+	// 		var msg []byte
+	// 		_, err := ws.Read(msg)
 	// 		if err != nil {
 	// 			h.clientsMu.Lock()
-	// 			delete(h.clients, conn)
+	// 			delete(h.clients, ws)
 	// 			h.clientsMu.Unlock()
 	// 			break
 	// 		}
@@ -212,32 +205,21 @@ func (h *Handler) handleWS(ws *websocket.Conn) {
 	// }()
 }
 
-func (h *Handler) readLoop(ws *websocket.Conn) {
-	buf := make([]byte, 1024)
-	for {
-		n, err := ws.Read(buf)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			slog.Info("read error", "error", err, "remote_addr", ws.RemoteAddr())
-			continue
-		}
-
-		msg := buf[:n]
-		slog.Info(string(msg))
-		ws.Write([]byte("thank you for the message"))
-	}
-}
-
 func (h *Handler) broadcastToClients(status PlungeStatus) {
 	h.clientsMu.Lock()
 	defer h.clientsMu.Unlock()
 
 	for client := range h.clients {
-		err := client.WriteJSON(message)
+		data, err := json.Marshal(status)
 		if err != nil {
-			fmt.Printf("Error writing to client: %v\n", err)
+			slog.Error("failed to convert plunge status to JSON", "error", err)
+			client.Close()
+			delete(h.clients, client)
+		}
+
+		_, err = client.Write(data)
+		if err != nil {
+			slog.Error("Error writing to client", "error", err)
 			client.Close()
 			delete(h.clients, client)
 		}
