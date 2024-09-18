@@ -13,7 +13,8 @@ import (
 	"github.com/KyleBrandon/plunger-server/services/health"
 	"github.com/KyleBrandon/plunger-server/services/leaks"
 	"github.com/KyleBrandon/plunger-server/services/ozone"
-	"github.com/KyleBrandon/plunger-server/services/plunges/v1"
+	plungesV1 "github.com/KyleBrandon/plunger-server/services/plunges/v1"
+	plungesV2 "github.com/KyleBrandon/plunger-server/services/plunges/v2"
 	"github.com/KyleBrandon/plunger-server/services/pump"
 	"github.com/KyleBrandon/plunger-server/services/temperatures"
 	"github.com/KyleBrandon/plunger-server/services/users"
@@ -59,8 +60,11 @@ func main() {
 	pumpHandler := pump.NewHandler(config.Sensors)
 	pumpHandler.RegisterRoutes(mux)
 
-	plungesHandler := plunges.NewHandler(config.DB, config.Sensors)
-	plungesHandler.RegisterRoutes(mux)
+	plungesHandlerV1 := plungesV1.NewHandler(config.DB, config.Sensors)
+	plungesHandlerV1.RegisterRoutes(mux)
+
+	plungesHandlerV2 := plungesV2.NewHandler(config.DB, config.Sensors)
+	plungesHandlerV2.RegisterRoutes(mux)
 
 	temperatureHandler := temperatures.NewHandler(config.Sensors)
 	temperatureHandler.RegisterRoutes(mux)
