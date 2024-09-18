@@ -13,7 +13,7 @@ import (
 	"github.com/KyleBrandon/plunger-server/services/health"
 	"github.com/KyleBrandon/plunger-server/services/leaks"
 	"github.com/KyleBrandon/plunger-server/services/ozone"
-	"github.com/KyleBrandon/plunger-server/services/plunges"
+	"github.com/KyleBrandon/plunger-server/services/plunges/v1"
 	"github.com/KyleBrandon/plunger-server/services/pump"
 	"github.com/KyleBrandon/plunger-server/services/temperatures"
 	"github.com/KyleBrandon/plunger-server/services/users"
