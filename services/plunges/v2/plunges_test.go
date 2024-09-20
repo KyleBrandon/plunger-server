@@ -19,10 +19,11 @@ func TestPlungesGet(t *testing.T) {
 		sensors := mockSensors{}
 
 		handler := NewHandler(&store, &sensors)
-		store.plungeID = uuid.New()
+		store.plunge = database.Plunge{}
 		rr := utils.TestRequest(t, http.MethodGet, "/v2/plunges/status", nil, handler.handlePlungesGet)
-		utils.TestExpectedStatus(t, rr, http.StatusNotFound)
-		utils.TestExpectedMessage(t, rr, "No active timer")
+		utils.TestExpectedStatus(t, rr, http.StatusOK)
+		// TODO: check for a valid PlungeResponse
+		// utils.TestExpectedMessage(t, rr, "No active timer")
 	})
 
 	t.Run("get pluge that is running", func(t *testing.T) {
@@ -30,9 +31,11 @@ func TestPlungesGet(t *testing.T) {
 		sensors := mockSensors{}
 
 		handler := NewHandler(&store, &sensors)
+
 		handler.Running = true
 
 		store.plungeID = uuid.New()
+		store.plunge.Running = true
 		rr := utils.TestRequest(t, http.MethodGet, "/v2/plunges/status", nil, handler.handlePlungesGet)
 		utils.TestExpectedStatus(t, rr, http.StatusOK)
 	})

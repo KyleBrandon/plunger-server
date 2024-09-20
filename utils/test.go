@@ -47,6 +47,6 @@ func TestExpectedStatus(t *testing.T, rr *httptest.ResponseRecorder, statusCode 
 
 func TestExpectedMessage(t *testing.T, rr *httptest.ResponseRecorder, m string) {
 	if !strings.Contains(rr.Body.String(), m) {
-		t.Errorf("received error message %s", rr.Body.String())
+		t.Errorf("received error message `%s`, expected message `%s`", rr.Body.String(), m)
 	}
 }

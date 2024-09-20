@@ -28,10 +28,10 @@ func NewHandler(store PlungeStore, sensors Sensors) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.Handle("/v1/plunge/ws", websocket.Handler(h.handleWS))
-	mux.HandleFunc("GET /v1/plunge/status", h.handlePlungesGet)
-	mux.HandleFunc("POST /v1/plunge/start", h.handlePlungesStart)
-	mux.HandleFunc("PUT /v1/plunge/stop", h.handlePlungesStop)
+	mux.Handle("/v2/plunge/ws", websocket.Handler(h.handleWS))
+	mux.HandleFunc("GET /v2/plunge/status", h.handlePlungesGet)
+	mux.HandleFunc("POST /v2/plunge/start", h.handlePlungesStart)
+	mux.HandleFunc("PUT /v2/plunge/stop", h.handlePlungesStop)
 }
 
 func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
@@ -39,10 +39,10 @@ func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 	h.plungeMu.Lock()
 	defer h.plungeMu.Unlock()
 
-	if !h.Running {
-		utils.RespondWithError(w, http.StatusNotFound, "No active timer", nil)
-		return
-	}
+	// if !h.Running {
+	// 	utils.RespondWithError(w, http.StatusNotFound, "No active timer", nil)
+	// 	return
+	// }
 
 	p, err := h.store.GetLatestPlunge(r.Context())
 	if err != nil {
@@ -228,9 +228,12 @@ func (h *Handler) broadcastToClients(status PlungeStatus) {
 
 func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
 	resp := PlungeResponse{
-		ID:        dbPlunge.ID,
-		CreatedAt: dbPlunge.CreatedAt,
-		UpdatedAt: dbPlunge.UpdatedAt,
+		ID:               dbPlunge.ID,
+		CreatedAt:        dbPlunge.CreatedAt,
+		UpdatedAt:        dbPlunge.UpdatedAt,
+		ExpectedDuration: dbPlunge.ExpectedDuration,
+		AvgWaterTemp:     dbPlunge.AvgWaterTemp,
+		AvgRoomTemp:      dbPlunge.AvgRoomTemp,
 	}
 
 	if dbPlunge.StartTime.Valid {
