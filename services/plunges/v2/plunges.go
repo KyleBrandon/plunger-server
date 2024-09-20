@@ -28,21 +28,16 @@ func NewHandler(store PlungeStore, sensors Sensors) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.Handle("/v2/plunge/ws", websocket.Handler(h.handleWS))
-	mux.HandleFunc("GET /v2/plunge/status", h.handlePlungesGet)
-	mux.HandleFunc("POST /v2/plunge/start", h.handlePlungesStart)
-	mux.HandleFunc("PUT /v2/plunge/stop", h.handlePlungesStop)
+	mux.Handle("/v2/plunges/ws", websocket.Handler(h.handleWS))
+	mux.HandleFunc("GET /v2/plunges/status", h.handlePlungesGet)
+	mux.HandleFunc("POST /v2/plunges/start", h.handlePlungesStart)
+	mux.HandleFunc("PUT /v2/plunges/stop", h.handlePlungesStop)
 }
 
 func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesGet")
 	h.plungeMu.Lock()
 	defer h.plungeMu.Unlock()
-
-	// if !h.Running {
-	// 	utils.RespondWithError(w, http.StatusNotFound, "No active timer", nil)
-	// 	return
-	// }
 
 	p, err := h.store.GetLatestPlunge(r.Context())
 	if err != nil {
