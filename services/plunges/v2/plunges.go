@@ -131,8 +131,10 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleWS(w http.ResponseWriter, r *http.Request) {
 	slog.Info(">>handleWS: new incoming connection")
-
-	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{})
+	opts := &websocket.AcceptOptions{
+		OriginPatterns: []string{"localhost:3000", "http://localhost:3000", "10.0.4.213:3000", "http://10.0.4.213:3000"},
+	}
+	c, err := websocket.Accept(w, r, opts)
 	if err != nil {
 		slog.Error("websocket accept error:", "error", err)
 		return
