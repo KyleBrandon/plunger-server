@@ -180,6 +180,7 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 			h.mu.Unlock()
 
 			status := PlungeStatus{
+				ID:        h.id,
 				Remaining: remaining,
 				TotalTime: elapsedTime,
 				Running:   h.running,
