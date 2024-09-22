@@ -75,8 +75,8 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 
 	params := database.StartPlungeParams{
 		StartTime:      sql.NullTime{Valid: true, Time: h.startTime},
-		StartWaterTemp: sql.NullString{Valid: true, String: fmt.Sprintf("%f", waterTemp)},
-		StartRoomTemp:  sql.NullString{Valid: true, String: fmt.Sprintf("%f", roomTemp)},
+		StartWaterTemp: fmt.Sprintf("%f", waterTemp),
+		StartRoomTemp:  fmt.Sprintf("%f", roomTemp),
 	}
 
 	// Save start to database
@@ -107,6 +107,8 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	waterTemp, roomTemp, _ := h.readCurrentTemperatures()
+	avgWaterTemp := h.waterTempTotal / float64(h.tempReadCount)
+	avgRoomTemp := h.roomTempTotal / float64(h.tempReadCount)
 
 	h.stopTime = time.Now().UTC()
 	h.running = false
@@ -114,8 +116,10 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 	params := database.StopPlungeParams{
 		ID:           h.id,
 		EndTime:      sql.NullTime{Valid: true, Time: h.stopTime},
-		EndWaterTemp: sql.NullString{Valid: true, String: fmt.Sprintf("%f", waterTemp)},
-		EndRoomTemp:  sql.NullString{Valid: true, String: fmt.Sprintf("%f", roomTemp)},
+		EndWaterTemp: fmt.Sprintf("%f", waterTemp),
+		EndRoomTemp:  fmt.Sprintf("%f", roomTemp),
+		AvgWaterTemp: fmt.Sprintf("%f", avgWaterTemp),
+		AvgRoomTemp:  fmt.Sprintf("%f", avgRoomTemp),
 	}
 
 	_, err := h.store.StopPlunge(r.Context(), params)
@@ -169,23 +173,27 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 				continue
 			}
 
-			remaining := h.duration - time.Since(h.startTime)
+			elapsedTime := time.Since(h.startTime)
+			remaining := h.duration - elapsedTime
 			if remaining <= 0 {
 				remaining = 0
 			}
 
-			elapsedTime := time.Since(h.startTime)
 			waterTemp, roomTemp, _ := h.readCurrentTemperatures()
+			avgWaterTemp := h.waterTempTotal / float64(h.tempReadCount)
+			avgRoomTemp := h.roomTempTotal / float64(h.tempReadCount)
 
 			h.mu.Unlock()
 
 			status := PlungeStatus{
-				ID:        h.id,
-				Remaining: remaining,
-				TotalTime: elapsedTime,
-				Running:   h.running,
-				WaterTemp: waterTemp,
-				RoomTemp:  roomTemp,
+				ID:           h.id,
+				Remaining:    remaining,
+				TotalTime:    elapsedTime,
+				Running:      h.running,
+				WaterTemp:    waterTemp,
+				RoomTemp:     roomTemp,
+				AvgWaterTemp: avgWaterTemp,
+				AvgRoomTemp:  avgRoomTemp,
 			}
 
 			err := wsjson.Write(ctx, c, status)
@@ -213,6 +221,10 @@ func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
 		CreatedAt:        dbPlunge.CreatedAt,
 		UpdatedAt:        dbPlunge.UpdatedAt,
 		ExpectedDuration: dbPlunge.ExpectedDuration,
+		StartWaterTemp:   dbPlunge.StartWaterTemp,
+		EndWaterTemp:     dbPlunge.EndWaterTemp,
+		StartRoomTemp:    dbPlunge.StartRoomTemp,
+		EndRoomTemp:      dbPlunge.EndRoomTemp,
 		AvgWaterTemp:     dbPlunge.AvgWaterTemp,
 		AvgRoomTemp:      dbPlunge.AvgRoomTemp,
 	}
@@ -227,18 +239,6 @@ func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
 	} else {
 		resp.ElapsedTime = time.Now().UTC().Sub(resp.StartTime).Seconds()
 		resp.Running = true
-	}
-	if dbPlunge.StartWaterTemp.Valid {
-		resp.StartWaterTemp = dbPlunge.StartWaterTemp.String
-	}
-	if dbPlunge.EndWaterTemp.Valid {
-		resp.EndWaterTemp = dbPlunge.EndWaterTemp.String
-	}
-	if dbPlunge.StartRoomTemp.Valid {
-		resp.StartRoomTemp = dbPlunge.StartRoomTemp.String
-	}
-	if dbPlunge.EndRoomTemp.Valid {
-		resp.EndRoomTemp = dbPlunge.EndRoomTemp.String
 	}
 
 	return resp

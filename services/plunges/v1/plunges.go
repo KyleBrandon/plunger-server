@@ -32,18 +32,10 @@ func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
 		resp.ElapsedTime = time.Now().UTC().Sub(resp.StartTime).Seconds()
 		resp.Running = true
 	}
-	if dbPlunge.StartWaterTemp.Valid {
-		resp.StartWaterTemp = dbPlunge.StartWaterTemp.String
-	}
-	if dbPlunge.EndWaterTemp.Valid {
-		resp.EndWaterTemp = dbPlunge.EndWaterTemp.String
-	}
-	if dbPlunge.StartRoomTemp.Valid {
-		resp.StartRoomTemp = dbPlunge.StartRoomTemp.String
-	}
-	if dbPlunge.EndRoomTemp.Valid {
-		resp.EndRoomTemp = dbPlunge.EndRoomTemp.String
-	}
+	resp.StartWaterTemp = dbPlunge.StartWaterTemp
+	resp.EndWaterTemp = dbPlunge.EndWaterTemp
+	resp.StartRoomTemp = dbPlunge.StartRoomTemp
+	resp.EndRoomTemp = dbPlunge.EndRoomTemp
 
 	return resp
 }
@@ -120,16 +112,14 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	waterTemp := sql.NullString{Valid: false}
-	roomTemp := sql.NullString{Valid: false}
+	waterTemp := ""
+	roomTemp := ""
 
 	for _, temp := range temperatures {
 		if temp.Name == "Room" {
-			roomTemp.Valid = true
-			roomTemp.String = fmt.Sprintf("%f", temp.TemperatureF)
+			roomTemp = fmt.Sprintf("%f", temp.TemperatureF)
 		} else if temp.Name == "Water" {
-			waterTemp.Valid = true
-			waterTemp.String = fmt.Sprintf("%f", temp.TemperatureF)
+			waterTemp = fmt.Sprintf("%f", temp.TemperatureF)
 		}
 	}
 
@@ -168,16 +158,14 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	waterTemp := sql.NullString{Valid: false}
-	roomTemp := sql.NullString{Valid: false}
+	waterTemp := ""
+	roomTemp := ""
 
 	for _, temp := range temperatures {
 		if temp.Name == "Room" {
-			roomTemp.Valid = true
-			roomTemp.String = fmt.Sprintf("%f", temp.TemperatureF)
+			roomTemp = fmt.Sprintf("%f", temp.TemperatureF)
 		} else if temp.Name == "Water" {
-			waterTemp.Valid = true
-			waterTemp.String = fmt.Sprintf("%f", temp.TemperatureF)
+			waterTemp = fmt.Sprintf("%f", temp.TemperatureF)
 		}
 	}
 

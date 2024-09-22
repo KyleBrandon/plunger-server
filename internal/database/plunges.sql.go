@@ -116,8 +116,8 @@ RETURNING id, created_at, updated_at, start_time, start_water_temp, start_room_t
 
 type StartPlungeParams struct {
 	StartTime      sql.NullTime
-	StartWaterTemp sql.NullString
-	StartRoomTemp  sql.NullString
+	StartWaterTemp string
+	StartRoomTemp  string
 }
 
 func (q *Queries) StartPlunge(ctx context.Context, arg StartPlungeParams) (Plunge, error) {
@@ -143,15 +143,17 @@ func (q *Queries) StartPlunge(ctx context.Context, arg StartPlungeParams) (Plung
 
 const stopPlunge = `-- name: StopPlunge :one
 UPDATE plunges 
-SET end_time = $1, end_water_temp = $2, end_room_temp = $3, running = FALSE, updated_at = CURRENT_TIMESTAMP
-WHERE id = $4
+SET end_time = $1, end_water_temp = $2, end_room_temp = $3, avg_water_temp = $4, avg_room_temp = $5, running = FALSE, updated_at = CURRENT_TIMESTAMP
+WHERE id = $6
 RETURNING id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp, running, expected_duration, avg_water_temp, avg_room_temp
 `
 
 type StopPlungeParams struct {
 	EndTime      sql.NullTime
-	EndWaterTemp sql.NullString
-	EndRoomTemp  sql.NullString
+	EndWaterTemp string
+	EndRoomTemp  string
+	AvgWaterTemp string
+	AvgRoomTemp  string
 	ID           uuid.UUID
 }
 
@@ -160,6 +162,8 @@ func (q *Queries) StopPlunge(ctx context.Context, arg StopPlungeParams) (Plunge,
 		arg.EndTime,
 		arg.EndWaterTemp,
 		arg.EndRoomTemp,
+		arg.AvgWaterTemp,
+		arg.AvgRoomTemp,
 		arg.ID,
 	)
 	var i Plunge

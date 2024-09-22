@@ -12,8 +12,8 @@ RETURNING *;
 
 -- name: StopPlunge :one
 UPDATE plunges 
-SET end_time = $1, end_water_temp = $2, end_room_temp = $3, running = FALSE, updated_at = CURRENT_TIMESTAMP
-WHERE id = $4
+SET end_time = $1, end_water_temp = $2, end_room_temp = $3, avg_water_temp = $4, avg_room_temp = $5, running = FALSE, updated_at = CURRENT_TIMESTAMP
+WHERE id = $6
 RETURNING *;
 
 -- name: GetLatestPlunge :one

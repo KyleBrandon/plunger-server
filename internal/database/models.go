@@ -37,11 +37,11 @@ type Plunge struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	StartTime        sql.NullTime
-	StartWaterTemp   sql.NullString
-	StartRoomTemp    sql.NullString
+	StartWaterTemp   string
+	StartRoomTemp    string
 	EndTime          sql.NullTime
-	EndWaterTemp     sql.NullString
-	EndRoomTemp      sql.NullString
+	EndWaterTemp     string
+	EndRoomTemp      string
 	Running          bool
 	ExpectedDuration int32
 	AvgWaterTemp     string
