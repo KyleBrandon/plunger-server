@@ -32,7 +32,7 @@ func TestPlungesGet(t *testing.T) {
 
 		handler := NewHandler(&store, &sensors)
 
-		handler.Running = true
+		handler.running = true
 
 		store.plungeID = uuid.New()
 		store.plunge.Running = true
@@ -61,8 +61,8 @@ func TestPlungeStart(t *testing.T) {
 		utils.TestExpectedStatus(t, rr, http.StatusCreated)
 
 		d := time.Duration(3) * time.Minute
-		if handler.Duration != d {
-			t.Errorf("expected duration %v, got %v", d, handler.Duration)
+		if handler.duration != d {
+			t.Errorf("expected duration %v, got %v", d, handler.duration)
 		}
 	})
 	t.Run("start plunge with query parameter expect 4 minute plunge", func(t *testing.T) {
@@ -74,8 +74,8 @@ func TestPlungeStart(t *testing.T) {
 		utils.TestExpectedStatus(t, rr, http.StatusCreated)
 
 		d := time.Duration(4) * time.Minute
-		if handler.Duration != d {
-			t.Errorf("expected duration %v, got %v", d, handler.Duration)
+		if handler.duration != d {
+			t.Errorf("expected duration %v, got %v", d, handler.duration)
 		}
 	})
 }

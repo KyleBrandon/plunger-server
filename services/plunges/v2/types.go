@@ -8,7 +8,6 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/google/uuid"
-	"golang.org/x/net/websocket"
 )
 
 type PlungeResponse struct {
@@ -55,17 +54,13 @@ type Handler struct {
 	store   PlungeStore
 	sensors Sensors
 
-	plungeMu       sync.Mutex
-	plungeID       uuid.UUID
-	StartTime      time.Time
-	StopTime       time.Time
-	Duration       time.Duration
-	Running        bool
-	ElapsedTime    time.Duration
-	WaterTempTotal float64
-	RoomTempTotal  float64
-	TempReadCount  int64
-
-	clients   map[*websocket.Conn]bool
-	clientsMu sync.Mutex
+	mu             sync.Mutex
+	id             uuid.UUID
+	startTime      time.Time
+	stopTime       time.Time
+	duration       time.Duration
+	running        bool
+	waterTempTotal float64
+	roomTempTotal  float64
+	tempReadCount  int64
 }

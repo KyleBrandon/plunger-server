@@ -1,8 +1,8 @@
 package plunges
 
 import (
+	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -11,8 +11,9 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/utils"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 	"github.com/google/uuid"
-	"golang.org/x/net/websocket"
 )
 
 const DefaultPlungeDurationSeconds = "180"
@@ -22,13 +23,12 @@ func NewHandler(store PlungeStore, sensors Sensors) *Handler {
 
 	h.store = store
 	h.sensors = sensors
-	h.Running = false
-	h.clients = make(map[*websocket.Conn]bool)
+	h.running = false
 	return &h
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.Handle("/v2/plunges/ws", websocket.Handler(h.handleWS))
+	mux.HandleFunc("/v2/plunges/ws", h.handleWS)
 	mux.HandleFunc("GET /v2/plunges/status", h.handlePlungesGet)
 	mux.HandleFunc("POST /v2/plunges/start", h.handlePlungesStart)
 	mux.HandleFunc("PUT /v2/plunges/stop", h.handlePlungesStop)
@@ -36,8 +36,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesGet")
-	h.plungeMu.Lock()
-	defer h.plungeMu.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
 	p, err := h.store.GetLatestPlunge(r.Context())
 	if err != nil {
@@ -70,11 +70,11 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.plungeMu.Lock()
-	defer h.plungeMu.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
 	params := database.StartPlungeParams{
-		StartTime:      sql.NullTime{Valid: true, Time: h.StartTime},
+		StartTime:      sql.NullTime{Valid: true, Time: h.startTime},
 		StartWaterTemp: sql.NullString{Valid: true, String: fmt.Sprintf("%f", waterTemp)},
 		StartRoomTemp:  sql.NullString{Valid: true, String: fmt.Sprintf("%f", roomTemp)},
 	}
@@ -87,80 +87,33 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// initalize the plunge context info
-	h.plungeID = plunge.ID
-	h.StartTime = time.Now().UTC()
-	h.Duration = time.Duration(duration) * time.Second
-	h.Running = true
-	h.ElapsedTime = 0
-
-	// start monitoring the plunge status
-	go h.monitorPlunge()
+	h.id = plunge.ID
+	h.startTime = time.Now().UTC()
+	h.duration = time.Duration(duration) * time.Second
+	h.running = true
 
 	utils.RespondWithJSON(w, http.StatusCreated, databasePlungeToPlunge(plunge))
-}
-
-func (h *Handler) monitorPlunge() {
-	for {
-		h.plungeMu.Lock()
-		remaining := h.Duration - time.Since(h.StartTime)
-		if remaining <= 0 {
-			remaining = 0
-		}
-
-		h.ElapsedTime = time.Since(h.StartTime)
-
-		waterTemp, roomTemp, _ := h.readCurrentTemperatures()
-
-		h.plungeMu.Unlock()
-
-		status := PlungeStatus{
-			Remaining: remaining,
-			TotalTime: h.ElapsedTime,
-			Running:   h.Running,
-			WaterTemp: waterTemp,
-			RoomTemp:  roomTemp,
-		}
-
-		h.broadcastToClients(status)
-
-		if remaining == 0 && !h.Running {
-			break
-		}
-
-		time.Sleep(1 * time.Second)
-	}
 }
 
 func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesStop")
 
-	h.plungeMu.Lock()
-	defer h.plungeMu.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
-	if !h.Running {
+	if !h.running {
 		utils.RespondWithError(w, http.StatusConflict, "No plunge timer running", nil)
 		return
 	}
 
 	waterTemp, roomTemp, _ := h.readCurrentTemperatures()
 
-	h.StopTime = time.Now().UTC()
-	h.Running = false
-	h.ElapsedTime = h.StopTime.Sub(h.StartTime)
-
-	status := PlungeStatus{
-		Remaining: 0,
-		TotalTime: h.ElapsedTime,
-		Running:   h.Running,
-		WaterTemp: waterTemp,
-		RoomTemp:  roomTemp,
-	}
-
-	h.broadcastToClients(status)
+	h.stopTime = time.Now().UTC()
+	h.running = false
 
 	params := database.StopPlungeParams{
-		ID:           h.plungeID,
-		EndTime:      sql.NullTime{Valid: true, Time: h.StopTime},
+		ID:           h.id,
+		EndTime:      sql.NullTime{Valid: true, Time: h.stopTime},
 		EndWaterTemp: sql.NullString{Valid: true, String: fmt.Sprintf("%f", waterTemp)},
 		EndRoomTemp:  sql.NullString{Valid: true, String: fmt.Sprintf("%f", roomTemp)},
 	}
@@ -171,52 +124,82 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.plungeID = uuid.Nil
+	h.id = uuid.Nil
 
 	utils.RespondWithNoContent(w, http.StatusNoContent)
 }
 
-func (h *Handler) handleWS(ws *websocket.Conn) {
-	slog.Info("new incoming connection", "remote_addr", ws.RemoteAddr())
+func (h *Handler) handleWS(w http.ResponseWriter, r *http.Request) {
+	slog.Info(">>handleWS: new incoming connection")
 
-	// Add the new client
-	h.clientsMu.Lock()
-	h.clients[ws] = true
-	h.clientsMu.Unlock()
+	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{})
+	if err != nil {
+		slog.Error("websocket accept error:", "error", err)
+		return
+	}
 
-	// // Handle incoming messages (optional, not needed for this timer example)
-	// go func() {
-	// 	defer ws.Close()
-	// 	for {
-	// 		var msg []byte
-	// 		_, err := ws.Read(msg)
-	// 		if err != nil {
-	// 			h.clientsMu.Lock()
-	// 			delete(h.clients, ws)
-	// 			h.clientsMu.Unlock()
-	// 			break
-	// 		}
-	// 	}
-	// }()
+	defer c.Close(websocket.StatusInternalError, "Unexpected connection close")
+
+	h.monitorPlunge(r.Context(), c)
+
+	slog.Info("<<handleWS")
 }
 
-func (h *Handler) broadcastToClients(status PlungeStatus) {
-	h.clientsMu.Lock()
-	defer h.clientsMu.Unlock()
+func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
+	slog.Info(">>monitorPlunge")
+	ticker := time.NewTicker(1 * time.Second)
+	heartbeatTicker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	defer heartbeatTicker.Stop()
 
-	for client := range h.clients {
-		data, err := json.Marshal(status)
-		if err != nil {
-			slog.Error("failed to convert plunge status to JSON", "error", err)
-			client.Close()
-			delete(h.clients, client)
-		}
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("monitorPlunge: client disconnected")
+			c.Close(websocket.StatusNormalClosure, "Connection closed")
+			return
 
-		_, err = client.Write(data)
-		if err != nil {
-			slog.Error("Error writing to client", "error", err)
-			client.Close()
-			delete(h.clients, client)
+		case <-ticker.C:
+			slog.Info("monitorPlunge: send status")
+			h.mu.Lock()
+			if !h.running {
+				h.mu.Unlock()
+				continue
+			}
+
+			remaining := h.duration - time.Since(h.startTime)
+			if remaining <= 0 {
+				remaining = 0
+			}
+
+			elapsedTime := time.Since(h.startTime)
+			waterTemp, roomTemp, _ := h.readCurrentTemperatures()
+
+			h.mu.Unlock()
+
+			status := PlungeStatus{
+				Remaining: remaining,
+				TotalTime: elapsedTime,
+				Running:   h.running,
+				WaterTemp: waterTemp,
+				RoomTemp:  roomTemp,
+			}
+
+			err := wsjson.Write(ctx, c, status)
+			if err != nil {
+				slog.Error("monitorPlunge: error writing to client", "error", err)
+				c.Close(websocket.StatusInternalError, "error writing status")
+				return
+			}
+
+		case <-heartbeatTicker.C:
+			// send ping
+			err := c.Ping(ctx)
+			if err != nil {
+				slog.Error("monitorPlunge: error sending pint", "error", err)
+				c.Close(websocket.StatusInternalError, "error sending ping")
+				return
+			}
 		}
 	}
 }
@@ -275,9 +258,9 @@ func (h *Handler) readCurrentTemperatures() (float64, float64, error) {
 		}
 	}
 
-	h.WaterTempTotal += waterTemp
-	h.RoomTempTotal += roomTemp
-	h.TempReadCount++
+	h.waterTempTotal += waterTemp
+	h.roomTempTotal += roomTemp
+	h.tempReadCount++
 
 	return roomTemp, waterTemp, nil
 }
