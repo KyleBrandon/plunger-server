@@ -146,7 +146,9 @@ func (h *Handler) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	defer c.Close(websocket.StatusInternalError, "Unexpected connection close")
 
-	h.monitorPlunge(r.Context(), c)
+	ctx := c.CloseRead(r.Context())
+
+	h.monitorPlunge(ctx, c)
 
 	slog.Info("<<handleWS")
 }
@@ -206,9 +208,10 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 
 		case <-heartbeatTicker.C:
 			// send ping
+			slog.Info("monitorPlunge: send ping")
 			err := c.Ping(ctx)
 			if err != nil {
-				slog.Error("monitorPlunge: error sending pint", "error", err)
+				slog.Error("monitorPlunge: error sending ping", "error", err)
 				c.Close(websocket.StatusInternalError, "error sending ping")
 				return
 			}
