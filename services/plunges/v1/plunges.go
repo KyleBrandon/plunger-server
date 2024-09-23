@@ -172,8 +172,8 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 		EndTime:      sql.NullTime{Valid: true, Time: time.Now().UTC()},
 		EndWaterTemp: waterTemp,
 		EndRoomTemp:  roomTemp,
-		AvgWaterTemp: "",
-		AvgRoomTemp:  "",
+		AvgWaterTemp: "0.0",
+		AvgRoomTemp:  "0.0",
 	}
 
 	_, err = h.store.StopPlunge(r.Context(), params)
