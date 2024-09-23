@@ -187,8 +187,9 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 
 			status := PlungeStatus{
 				ID:           h.id,
+				Duration:     h.duration,
 				Remaining:    remaining,
-				TotalTime:    elapsedTime,
+				ElapsedTime:  elapsedTime,
 				Running:      h.running,
 				WaterTemp:    waterTemp,
 				RoomTemp:     roomTemp,

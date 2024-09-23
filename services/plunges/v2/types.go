@@ -29,8 +29,9 @@ type PlungeResponse struct {
 
 type PlungeStatus struct {
 	ID           uuid.UUID     `json:"id,omitempty"`
-	Remaining    time.Duration `json:"remaining,omitempty"`
-	TotalTime    time.Duration `json:"total_time,omitempty"`
+	Duration     time.Duration `json:"duration,omitempty"`
+	Remaining    time.Duration `json:"remaining_time,omitempty"`
+	ElapsedTime  time.Duration `json:"elapsed_time,omitempty"`
 	Running      bool          `json:"running,omitempty"`
 	WaterTemp    float64       `json:"water_temp,omitempty"`
 	RoomTemp     float64       `json:"room_temp,omitempty"`
