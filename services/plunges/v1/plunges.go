@@ -62,14 +62,12 @@ func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 	if plungeID != "" && plungeID != r.URL.Path {
 		pid, err := uuid.Parse(plungeID)
 		if err != nil {
-			slog.Info("invalid plunge id")
 			utils.RespondWithError(w, http.StatusNotFound, "could not find plunge", err)
 			return
 		}
 
 		p, err := h.store.GetPlungeByID(r.Context(), pid)
 		if err != nil {
-			slog.Info("could not get plunge by id")
 			utils.RespondWithError(w, http.StatusNotFound, "could not find plunge", err)
 			return
 		}
@@ -154,7 +152,7 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 
 	temperatures, err := h.sensors.ReadTemperatures()
 	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to read the temperature at stop plunge", err)
 		return
 	}
 
@@ -174,11 +172,13 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 		EndTime:      sql.NullTime{Valid: true, Time: time.Now().UTC()},
 		EndWaterTemp: waterTemp,
 		EndRoomTemp:  roomTemp,
+		AvgWaterTemp: "",
+		AvgRoomTemp:  "",
 	}
 
 	_, err = h.store.StopPlunge(r.Context(), params)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to update the plunge to stop", err)
 		return
 	}
 
