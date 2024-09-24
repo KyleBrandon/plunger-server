@@ -15,28 +15,27 @@ type PlungeResponse struct {
 	CreatedAt        time.Time `json:"created_at,omitempty"`
 	UpdatedAt        time.Time `json:"updated_at,omitempty"`
 	StartTime        time.Time `json:"start_time,omitempty"`
-	EndTime          time.Time `json:"end_time,omitempty"`
-	Running          bool      `json:"running"`
-	ElapsedTime      float64   `json:"elapsed_time"`
-	StartRoomTemp    string    `json:"start_room_temp,omitempty"`
-	EndRoomTemp      string    `json:"end_room_temp,omitempty"`
 	StartWaterTemp   string    `json:"start_water_temp,omitempty"`
+	StartRoomTemp    string    `json:"start_room_temp,omitempty"`
+	EndTime          time.Time `json:"end_time,omitempty"`
 	EndWaterTemp     string    `json:"end_water_temp,omitempty"`
+	EndRoomTemp      string    `json:"end_room_temp,omitempty"`
+	Running          bool      `json:"running"`
 	ExpectedDuration int32     `json:"expected_duration,omitempty"`
 	AvgWaterTemp     string    `json:"average_water_temp,omitempty"`
 	AvgRoomTemp      string    `json:"average_room_temp,omitempty"`
 }
 
 type PlungeStatus struct {
-	ID           uuid.UUID `json:"id,omitempty"`
-	Duration     float64   `json:"duration,omitempty"`
-	Remaining    float64   `json:"remaining_time,omitempty"`
-	ElapsedTime  float64   `json:"elapsed_time,omitempty"`
-	Running      bool      `json:"running,omitempty"`
-	WaterTemp    float64   `json:"water_temp,omitempty"`
-	RoomTemp     float64   `json:"room_temp,omitempty"`
-	AvgWaterTemp float64   `json:"average_water_temp,omitempty"`
-	AvgRoomTemp  float64   `json:"average_room_temp,omitempty"`
+	ID               uuid.UUID `json:"id,omitempty"`
+	ExpectedDuration float64   `json:"expected_duration,omitempty"`
+	Remaining        float64   `json:"remaining_time,omitempty"`
+	ElapsedTime      float64   `json:"elapsed_time,omitempty"`
+	Running          bool      `json:"running,omitempty"`
+	WaterTemp        float64   `json:"water_temp,omitempty"`
+	RoomTemp         float64   `json:"room_temp,omitempty"`
+	AvgWaterTemp     float64   `json:"average_water_temp,omitempty"`
+	AvgRoomTemp      float64   `json:"average_room_temp,omitempty"`
 }
 
 type PlungeStore interface {

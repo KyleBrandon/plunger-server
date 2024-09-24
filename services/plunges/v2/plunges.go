@@ -189,15 +189,15 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 			h.mu.Unlock()
 
 			status := PlungeStatus{
-				ID:           h.id,
-				Duration:     h.duration.Seconds(),
-				Remaining:    remaining.Seconds(),
-				ElapsedTime:  elapsedTime.Seconds(),
-				Running:      h.running,
-				WaterTemp:    waterTemp,
-				RoomTemp:     roomTemp,
-				AvgWaterTemp: avgWaterTemp,
-				AvgRoomTemp:  avgRoomTemp,
+				ID:               h.id,
+				ExpectedDuration: h.duration.Seconds(),
+				Remaining:        remaining.Seconds(),
+				ElapsedTime:      elapsedTime.Seconds(),
+				Running:          h.running,
+				WaterTemp:        waterTemp,
+				RoomTemp:         roomTemp,
+				AvgWaterTemp:     avgWaterTemp,
+				AvgRoomTemp:      avgRoomTemp,
 			}
 
 			err := wsjson.Write(ctx, c, status)
@@ -225,11 +225,12 @@ func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
 		ID:               dbPlunge.ID,
 		CreatedAt:        dbPlunge.CreatedAt,
 		UpdatedAt:        dbPlunge.UpdatedAt,
-		ExpectedDuration: dbPlunge.ExpectedDuration,
 		StartWaterTemp:   dbPlunge.StartWaterTemp,
-		EndWaterTemp:     dbPlunge.EndWaterTemp,
 		StartRoomTemp:    dbPlunge.StartRoomTemp,
+		EndWaterTemp:     dbPlunge.EndWaterTemp,
 		EndRoomTemp:      dbPlunge.EndRoomTemp,
+		Running:          dbPlunge.Running,
+		ExpectedDuration: dbPlunge.ExpectedDuration,
 		AvgWaterTemp:     dbPlunge.AvgWaterTemp,
 		AvgRoomTemp:      dbPlunge.AvgRoomTemp,
 	}
@@ -239,11 +240,6 @@ func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
 	}
 	if dbPlunge.EndTime.Valid {
 		resp.EndTime = dbPlunge.EndTime.Time
-		resp.ElapsedTime = resp.EndTime.Sub(resp.StartTime).Seconds()
-		resp.Running = false
-	} else {
-		resp.ElapsedTime = time.Now().UTC().Sub(resp.StartTime).Seconds()
-		resp.Running = true
 	}
 
 	return resp
