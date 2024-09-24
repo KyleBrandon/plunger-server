@@ -109,19 +109,25 @@ func (q *Queries) GetPlunges(ctx context.Context) ([]Plunge, error) {
 
 const startPlunge = `-- name: StartPlunge :one
 INSERT INTO plunges (
-    start_time, start_water_temp, start_room_temp, running) 
-VALUES ( $1, $2, $3, true) 
+    start_time, start_water_temp, start_room_temp, expected_duration, running) 
+VALUES ( $1, $2, $3, $4, true) 
 RETURNING id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp, running, expected_duration, avg_water_temp, avg_room_temp
 `
 
 type StartPlungeParams struct {
-	StartTime      sql.NullTime
-	StartWaterTemp string
-	StartRoomTemp  string
+	StartTime        sql.NullTime
+	StartWaterTemp   string
+	StartRoomTemp    string
+	ExpectedDuration int32
 }
 
 func (q *Queries) StartPlunge(ctx context.Context, arg StartPlungeParams) (Plunge, error) {
-	row := q.db.QueryRowContext(ctx, startPlunge, arg.StartTime, arg.StartWaterTemp, arg.StartRoomTemp)
+	row := q.db.QueryRowContext(ctx, startPlunge,
+		arg.StartTime,
+		arg.StartWaterTemp,
+		arg.StartRoomTemp,
+		arg.ExpectedDuration,
+	)
 	var i Plunge
 	err := row.Scan(
 		&i.ID,

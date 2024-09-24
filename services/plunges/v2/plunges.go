@@ -64,7 +64,7 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	waterTemp, roomTemp, err := h.readCurrentTemperatures()
+	roomTemp, waterTemp, err := h.readCurrentTemperatures()
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
 		return
@@ -74,9 +74,10 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 	defer h.mu.Unlock()
 
 	params := database.StartPlungeParams{
-		StartTime:      sql.NullTime{Valid: true, Time: h.startTime},
-		StartWaterTemp: fmt.Sprintf("%f", waterTemp),
-		StartRoomTemp:  fmt.Sprintf("%f", roomTemp),
+		StartTime:        sql.NullTime{Valid: true, Time: time.Now().UTC()},
+		StartWaterTemp:   fmt.Sprintf("%f", waterTemp),
+		StartRoomTemp:    fmt.Sprintf("%f", roomTemp),
+		ExpectedDuration: int32(duration),
 	}
 
 	// Save start to database
@@ -88,7 +89,7 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 
 	// initalize the plunge context info
 	h.id = plunge.ID
-	h.startTime = time.Now().UTC()
+	h.startTime = plunge.StartTime.Time
 	h.duration = time.Duration(duration) * time.Second
 	h.running = true
 

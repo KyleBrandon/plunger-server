@@ -1,7 +1,7 @@
 -- name: StartPlunge :one
 INSERT INTO plunges (
-    start_time, start_water_temp, start_room_temp, running) 
-VALUES ( $1, $2, $3, true) 
+    start_time, start_water_temp, start_room_temp, expected_duration, running) 
+VALUES ( $1, $2, $3, $4, true) 
 RETURNING *;
 
 -- name: UpdatePlungeStatus :one
