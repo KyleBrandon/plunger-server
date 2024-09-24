@@ -28,15 +28,15 @@ type PlungeResponse struct {
 }
 
 type PlungeStatus struct {
-	ID           uuid.UUID     `json:"id,omitempty"`
-	Duration     time.Duration `json:"duration,omitempty"`
-	Remaining    time.Duration `json:"remaining_time,omitempty"`
-	ElapsedTime  time.Duration `json:"elapsed_time,omitempty"`
-	Running      bool          `json:"running,omitempty"`
-	WaterTemp    float64       `json:"water_temp,omitempty"`
-	RoomTemp     float64       `json:"room_temp,omitempty"`
-	AvgWaterTemp float64       `json:"average_water_temp,omitempty"`
-	AvgRoomTemp  float64       `json:"average_room_temp,omitempty"`
+	ID           uuid.UUID `json:"id,omitempty"`
+	Duration     float64   `json:"duration,omitempty"`
+	Remaining    float64   `json:"remaining_time,omitempty"`
+	ElapsedTime  float64   `json:"elapsed_time,omitempty"`
+	Running      bool      `json:"running,omitempty"`
+	WaterTemp    float64   `json:"water_temp,omitempty"`
+	RoomTemp     float64   `json:"room_temp,omitempty"`
+	AvgWaterTemp float64   `json:"average_water_temp,omitempty"`
+	AvgRoomTemp  float64   `json:"average_room_temp,omitempty"`
 }
 
 type PlungeStore interface {

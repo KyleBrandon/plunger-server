@@ -114,9 +114,10 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 	roomTemp := ""
 
 	for _, temp := range temperatures {
-		if temp.Name == "Room" {
+		switch temp.Name {
+		case "Room":
 			roomTemp = fmt.Sprintf("%f", temp.TemperatureF)
-		} else if temp.Name == "Water" {
+		case "Water":
 			waterTemp = fmt.Sprintf("%f", temp.TemperatureF)
 		}
 	}
@@ -160,9 +161,10 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 	roomTemp := ""
 
 	for _, temp := range temperatures {
-		if temp.Name == "Room" {
+		switch temp.Name {
+		case "Room":
 			roomTemp = fmt.Sprintf("%f", temp.TemperatureF)
-		} else if temp.Name == "Water" {
+		case "Water":
 			waterTemp = fmt.Sprintf("%f", temp.TemperatureF)
 		}
 	}

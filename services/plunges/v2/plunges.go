@@ -189,9 +189,9 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 
 			status := PlungeStatus{
 				ID:           h.id,
-				Duration:     h.duration,
-				Remaining:    remaining,
-				ElapsedTime:  elapsedTime,
+				Duration:     h.duration.Seconds(),
+				Remaining:    remaining.Seconds(),
+				ElapsedTime:  elapsedTime.Seconds(),
 				Running:      h.running,
 				WaterTemp:    waterTemp,
 				RoomTemp:     roomTemp,
@@ -258,9 +258,10 @@ func (h *Handler) readCurrentTemperatures() (float64, float64, error) {
 	roomTemp := 0.0
 
 	for _, temp := range temperatures {
-		if temp.Name == "Room" {
+		switch temp.Name {
+		case "Room":
 			roomTemp = temp.TemperatureF
-		} else if temp.Name == "Water" {
+		case "Water":
 			waterTemp = temp.TemperatureF
 		}
 	}
