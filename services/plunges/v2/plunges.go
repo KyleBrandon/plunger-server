@@ -107,7 +107,7 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	waterTemp, roomTemp, _ := h.readCurrentTemperatures()
+	roomTemp, waterTemp, _ := h.readCurrentTemperatures()
 	avgWaterTemp := h.waterTempTotal / float64(h.tempReadCount)
 	avgRoomTemp := h.roomTempTotal / float64(h.tempReadCount)
 
@@ -125,7 +125,7 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 
 	_, err := h.store.StopPlunge(r.Context(), params)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to stop the plunge timer", err)
 		return
 	}
 
@@ -182,7 +182,7 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 				remaining = 0
 			}
 
-			waterTemp, roomTemp, _ := h.readCurrentTemperatures()
+			roomTemp, waterTemp, _ := h.readCurrentTemperatures()
 			avgWaterTemp := h.waterTempTotal / float64(h.tempReadCount)
 			avgRoomTemp := h.roomTempTotal / float64(h.tempReadCount)
 
