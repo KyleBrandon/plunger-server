@@ -1,7 +1,6 @@
 package plunges
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -10,25 +9,50 @@ import (
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
+	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/KyleBrandon/plunger-server/utils"
-	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 	"github.com/google/uuid"
 )
 
 const DefaultPlungeDurationSeconds = "180"
 
-func NewHandler(store PlungeStore, sensors Sensors) *Handler {
+// Clear the current plunge state
+func (s *PlungeState) Clear() {
+	s.ID = uuid.Nil
+	s.Running = false
+	s.WaterTempTotal = 0
+	s.RoomTempTotal = 0
+	s.TempReadCount = 0
+}
+
+// Start a plunger state
+func (s *PlungeState) Start(id uuid.UUID) {
+	s.ID = id
+	s.Running = true
+}
+
+// Update the temperatures
+func (s *PlungeState) UpdateAverageTemperatures(roomTemperature float64, waterTemperature float64) (float64, float64) {
+	s.WaterTempTotal += waterTemperature
+	s.RoomTempTotal += roomTemperature
+	s.TempReadCount++
+	avgWaterTemp := s.WaterTempTotal / float64(s.TempReadCount)
+	avgRoomTemp := s.RoomTempTotal / float64(s.TempReadCount)
+
+	return avgRoomTemp, avgWaterTemp
+}
+
+func NewHandler(store PlungeStore, sensors sensor.Sensors, state *PlungeState) *Handler {
 	h := Handler{}
 
 	h.store = store
 	h.sensors = sensors
-	h.running = false
+	h.state = state
+
 	return &h
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/v2/plunges/ws", h.handleWS)
 	mux.HandleFunc("GET /v2/plunges/status", h.handlePlungesGet)
 	mux.HandleFunc("POST /v2/plunges/start", h.handlePlungesStart)
 	mux.HandleFunc("PUT /v2/plunges/stop", h.handlePlungesStop)
@@ -36,8 +60,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesGet")
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	h.state.MU.Lock()
+	defer h.state.MU.Unlock()
 
 	p, err := h.store.GetLatestPlunge(r.Context())
 	if err != nil {
@@ -64,19 +88,16 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roomTemp, waterTemp, err := h.readCurrentTemperatures()
-	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
+	roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
+	if roomTemp.Err != nil || waterTemp.Err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", roomTemp.Err)
 		return
 	}
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	params := database.StartPlungeParams{
 		StartTime:        sql.NullTime{Valid: true, Time: time.Now().UTC()},
-		StartWaterTemp:   fmt.Sprintf("%f", waterTemp),
-		StartRoomTemp:    fmt.Sprintf("%f", roomTemp),
+		StartWaterTemp:   fmt.Sprintf("%f", waterTemp.TemperatureF),
+		StartRoomTemp:    fmt.Sprintf("%f", roomTemp.TemperatureF),
 		ExpectedDuration: int32(duration),
 	}
 
@@ -88,10 +109,9 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// initalize the plunge context info
-	h.id = plunge.ID
-	h.startTime = plunge.StartTime.Time
-	h.duration = time.Duration(duration) * time.Second
-	h.running = true
+	h.state.MU.Lock()
+	h.state.Start(plunge.ID)
+	h.state.MU.Unlock()
 
 	utils.RespondWithJSON(w, http.StatusCreated, databasePlungeToPlunge(plunge))
 }
@@ -99,28 +119,30 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesStop")
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	h.state.MU.Lock()
 
-	if !h.running {
+	if !h.state.Running {
 		utils.RespondWithError(w, http.StatusConflict, "No plunge timer running", nil)
+		h.state.MU.Unlock()
 		return
 	}
 
-	roomTemp, waterTemp, _ := h.readCurrentTemperatures()
-	avgWaterTemp := h.waterTempTotal / float64(h.tempReadCount)
-	avgRoomTemp := h.roomTempTotal / float64(h.tempReadCount)
+	id := h.state.ID
+	h.state.Clear()
 
-	h.stopTime = time.Now().UTC()
-	h.running = false
+	h.state.MU.Unlock()
+
+	roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
+	if roomTemp.Err != nil || waterTemp.Err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to stop the plunge timer", roomTemp.Err)
+		return
+	}
 
 	params := database.StopPlungeParams{
-		ID:           h.id,
-		EndTime:      sql.NullTime{Valid: true, Time: h.stopTime},
-		EndWaterTemp: fmt.Sprintf("%f", waterTemp),
-		EndRoomTemp:  fmt.Sprintf("%f", roomTemp),
-		AvgWaterTemp: fmt.Sprintf("%f", avgWaterTemp),
-		AvgRoomTemp:  fmt.Sprintf("%f", avgRoomTemp),
+		ID:           id,
+		EndTime:      sql.NullTime{Valid: true, Time: time.Now().UTC()},
+		EndWaterTemp: fmt.Sprintf("%f", waterTemp.TemperatureF),
+		EndRoomTemp:  fmt.Sprintf("%f", roomTemp.TemperatureF),
 	}
 
 	_, err := h.store.StopPlunge(r.Context(), params)
@@ -129,95 +151,7 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.id = uuid.Nil
-
 	utils.RespondWithNoContent(w, http.StatusNoContent)
-}
-
-func (h *Handler) handleWS(w http.ResponseWriter, r *http.Request) {
-	slog.Info(">>handleWS: new incoming connection")
-	opts := &websocket.AcceptOptions{
-		OriginPatterns: []string{"localhost:3000", "http://localhost:3000", "10.0.4.213:3000", "http://10.0.4.213:3000"},
-	}
-	c, err := websocket.Accept(w, r, opts)
-	if err != nil {
-		slog.Error("websocket accept error:", "error", err)
-		return
-	}
-
-	defer c.Close(websocket.StatusInternalError, "Unexpected connection close")
-
-	ctx := c.CloseRead(r.Context())
-
-	h.monitorPlunge(ctx, c)
-
-	slog.Info("<<handleWS")
-}
-
-func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
-	slog.Info(">>monitorPlunge")
-	ticker := time.NewTicker(1 * time.Second)
-	heartbeatTicker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-	defer heartbeatTicker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			slog.Info("monitorPlunge: client disconnected")
-			c.Close(websocket.StatusNormalClosure, "Connection closed")
-			return
-
-		case <-ticker.C:
-			slog.Info("monitorPlunge: send status")
-			h.mu.Lock()
-			if !h.running {
-				h.mu.Unlock()
-				continue
-			}
-
-			elapsedTime := time.Since(h.startTime)
-			remaining := h.duration - elapsedTime
-			if remaining <= 0 {
-				remaining = 0
-			}
-
-			roomTemp, waterTemp, _ := h.readCurrentTemperatures()
-			avgWaterTemp := h.waterTempTotal / float64(h.tempReadCount)
-			avgRoomTemp := h.roomTempTotal / float64(h.tempReadCount)
-
-			h.mu.Unlock()
-
-			status := PlungeStatus{
-				ID:               h.id,
-				ExpectedDuration: h.duration.Seconds(),
-				Remaining:        remaining.Seconds(),
-				ElapsedTime:      elapsedTime.Seconds(),
-				Running:          h.running,
-				WaterTemp:        waterTemp,
-				RoomTemp:         roomTemp,
-				AvgWaterTemp:     avgWaterTemp,
-				AvgRoomTemp:      avgRoomTemp,
-			}
-
-			err := wsjson.Write(ctx, c, status)
-			if err != nil {
-				slog.Error("monitorPlunge: error writing to client", "error", err)
-				c.Close(websocket.StatusInternalError, "error writing status")
-				return
-			}
-
-		case <-heartbeatTicker.C:
-			// send ping
-			slog.Info("monitorPlunge: send ping")
-			err := c.Ping(ctx)
-			if err != nil {
-				slog.Error("monitorPlunge: error sending ping", "error", err)
-				c.Close(websocket.StatusInternalError, "error sending ping")
-				return
-			}
-		}
-	}
 }
 
 func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
@@ -243,29 +177,4 @@ func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
 	}
 
 	return resp
-}
-
-func (h *Handler) readCurrentTemperatures() (float64, float64, error) {
-	temperatures, err := h.sensors.ReadTemperatures()
-	if err != nil {
-		return 0.0, 0.0, err
-	}
-
-	waterTemp := 0.0
-	roomTemp := 0.0
-
-	for _, temp := range temperatures {
-		switch temp.Name {
-		case "Room":
-			roomTemp = temp.TemperatureF
-		case "Water":
-			waterTemp = temp.TemperatureF
-		}
-	}
-
-	h.waterTempTotal += waterTemp
-	h.roomTempTotal += roomTemp
-	h.tempReadCount++
-
-	return roomTemp, waterTemp, nil
 }

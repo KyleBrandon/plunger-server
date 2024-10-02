@@ -148,6 +148,34 @@ type mockSensors struct {
 	err          error
 }
 
-func (m *mockSensors) ReadTemperatures() ([]sensor.TemperatureReading, error) {
-	return m.temperatures, m.err
+func (m *mockSensors) ReadTemperatures() []sensor.TemperatureReading {
+	return m.temperatures
+}
+
+func (m *mockSensors) ReadRoomAndWaterTemperature() (sensor.TemperatureReading, sensor.TemperatureReading) {
+	return sensor.TemperatureReading{}, sensor.TemperatureReading{}
+}
+
+func (m *mockSensors) IsLeakPresent() (bool, error) {
+	return false, nil
+}
+
+func (m *mockSensors) TurnOzoneOn() error {
+	return nil
+}
+
+func (m *mockSensors) TurnOzoneOff() error {
+	return nil
+}
+
+func (m *mockSensors) IsPumpOn() (bool, error) {
+	return true, nil
+}
+
+func (m *mockSensors) TurnPumpOn() error {
+	return nil
+}
+
+func (m *mockSensors) TurnPumpOff() error {
+	return nil
 }

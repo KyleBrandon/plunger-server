@@ -148,9 +148,9 @@ func (q *Queries) StartPlunge(ctx context.Context, arg StartPlungeParams) (Plung
 }
 
 const stopPlunge = `-- name: StopPlunge :one
-UPDATE plunges 
-SET end_time = $1, end_water_temp = $2, end_room_temp = $3, avg_water_temp = $4, avg_room_temp = $5, running = FALSE, updated_at = CURRENT_TIMESTAMP
-WHERE id = $6
+UPDATE plunges
+SET end_time = $1, end_water_temp = $2, end_room_temp = $3, running = FALSE, updated_at = CURRENT_TIMESTAMP
+WHERE id = $4
 RETURNING id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp, running, expected_duration, avg_water_temp, avg_room_temp
 `
 
@@ -158,8 +158,6 @@ type StopPlungeParams struct {
 	EndTime      sql.NullTime
 	EndWaterTemp string
 	EndRoomTemp  string
-	AvgWaterTemp string
-	AvgRoomTemp  string
 	ID           uuid.UUID
 }
 
@@ -168,8 +166,6 @@ func (q *Queries) StopPlunge(ctx context.Context, arg StopPlungeParams) (Plunge,
 		arg.EndTime,
 		arg.EndWaterTemp,
 		arg.EndRoomTemp,
-		arg.AvgWaterTemp,
-		arg.AvgRoomTemp,
 		arg.ID,
 	)
 	var i Plunge
@@ -191,21 +187,21 @@ func (q *Queries) StopPlunge(ctx context.Context, arg StopPlungeParams) (Plunge,
 	return i, err
 }
 
-const updatePlungeStatus = `-- name: UpdatePlungeStatus :one
+const updatePlungeAvgTemp = `-- name: UpdatePlungeAvgTemp :one
 UPDATE plunges
 SET avg_water_temp = $1, avg_room_temp = $2
 WHERE id = $3
 RETURNING id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp, running, expected_duration, avg_water_temp, avg_room_temp
 `
 
-type UpdatePlungeStatusParams struct {
+type UpdatePlungeAvgTempParams struct {
 	AvgWaterTemp string
 	AvgRoomTemp  string
 	ID           uuid.UUID
 }
 
-func (q *Queries) UpdatePlungeStatus(ctx context.Context, arg UpdatePlungeStatusParams) (Plunge, error) {
-	row := q.db.QueryRowContext(ctx, updatePlungeStatus, arg.AvgWaterTemp, arg.AvgRoomTemp, arg.ID)
+func (q *Queries) UpdatePlungeAvgTemp(ctx context.Context, arg UpdatePlungeAvgTempParams) (Plunge, error) {
+	row := q.db.QueryRowContext(ctx, updatePlungeAvgTemp, arg.AvgWaterTemp, arg.AvgRoomTemp, arg.ID)
 	var i Plunge
 	err := row.Scan(
 		&i.ID,

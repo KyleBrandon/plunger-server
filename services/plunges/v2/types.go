@@ -26,43 +26,27 @@ type PlungeResponse struct {
 	AvgRoomTemp      string    `json:"average_room_temp,omitempty"`
 }
 
-type PlungeStatus struct {
-	ID               uuid.UUID `json:"id,omitempty"`
-	ExpectedDuration float64   `json:"expected_duration,omitempty"`
-	Remaining        float64   `json:"remaining_time,omitempty"`
-	ElapsedTime      float64   `json:"elapsed_time,omitempty"`
-	Running          bool      `json:"running,omitempty"`
-	WaterTemp        float64   `json:"water_temp,omitempty"`
-	RoomTemp         float64   `json:"room_temp,omitempty"`
-	AvgWaterTemp     float64   `json:"average_water_temp,omitempty"`
-	AvgRoomTemp      float64   `json:"average_room_temp,omitempty"`
-}
-
 type PlungeStore interface {
 	GetLatestPlunge(ctx context.Context) (database.Plunge, error)
 	GetPlungeByID(ctx context.Context, id uuid.UUID) (database.Plunge, error)
 	GetPlunges(ctx context.Context) ([]database.Plunge, error)
 	StartPlunge(ctx context.Context, arg database.StartPlungeParams) (database.Plunge, error)
-	UpdatePlungeStatus(ctx context.Context, arg database.UpdatePlungeStatusParams) (database.Plunge, error)
+	UpdatePlungeAvgTemp(ctx context.Context, arg database.UpdatePlungeAvgTempParams) (database.Plunge, error)
 	StopPlunge(ctx context.Context, arg database.StopPlungeParams) (database.Plunge, error)
 }
 
-// TODO: Clean up the sensor interface
-type Sensors interface {
-	ReadTemperatures() ([]sensor.TemperatureReading, error)
+type PlungeState struct {
+	MU             sync.Mutex
+	ID             uuid.UUID
+	Running        bool
+	WaterTempTotal float64
+	RoomTempTotal  float64
+	TempReadCount  int64
 }
 
 type Handler struct {
 	store   PlungeStore
-	sensors Sensors
+	sensors sensor.Sensors
 
-	mu             sync.Mutex
-	id             uuid.UUID
-	startTime      time.Time
-	stopTime       time.Time
-	duration       time.Duration
-	running        bool
-	waterTempTotal float64
-	roomTempTotal  float64
-	tempReadCount  int64
+	state *PlungeState
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
+	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/KyleBrandon/plunger-server/utils"
 	"github.com/google/uuid"
 )
@@ -40,7 +41,7 @@ func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
 	return resp
 }
 
-func NewHandler(store PlungeStore, sensors Sensors) *Handler {
+func NewHandler(store PlungeStore, sensors sensor.Sensors) *Handler {
 	return &Handler{
 		store,
 		sensors,
@@ -104,28 +105,12 @@ func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesStart")
 
-	temperatures, err := h.sensors.ReadTemperatures()
-	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
-		return
-	}
-
-	waterTemp := ""
-	roomTemp := ""
-
-	for _, temp := range temperatures {
-		switch temp.Name {
-		case "Room":
-			roomTemp = fmt.Sprintf("%f", temp.TemperatureF)
-		case "Water":
-			waterTemp = fmt.Sprintf("%f", temp.TemperatureF)
-		}
-	}
+	roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
 
 	params := database.StartPlungeParams{
 		StartTime:      sql.NullTime{Valid: true, Time: time.Now().UTC()},
-		StartWaterTemp: waterTemp,
-		StartRoomTemp:  roomTemp,
+		StartWaterTemp: fmt.Sprintf("%f", waterTemp.TemperatureF),
+		StartRoomTemp:  fmt.Sprintf("%f", roomTemp.TemperatureF),
 	}
 
 	plunge, err := h.store.StartPlunge(r.Context(), params)
@@ -151,31 +136,17 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	temperatures, err := h.sensors.ReadTemperatures()
+	roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "failed to read the temperature at stop plunge", err)
 		return
 	}
 
-	waterTemp := ""
-	roomTemp := ""
-
-	for _, temp := range temperatures {
-		switch temp.Name {
-		case "Room":
-			roomTemp = fmt.Sprintf("%f", temp.TemperatureF)
-		case "Water":
-			waterTemp = fmt.Sprintf("%f", temp.TemperatureF)
-		}
-	}
-
 	params := database.StopPlungeParams{
 		ID:           pid,
 		EndTime:      sql.NullTime{Valid: true, Time: time.Now().UTC()},
-		EndWaterTemp: waterTemp,
-		EndRoomTemp:  roomTemp,
-		AvgWaterTemp: "0.0",
-		AvgRoomTemp:  "0.0",
+		EndWaterTemp: fmt.Sprintf("%f", waterTemp.TemperatureF),
+		EndRoomTemp:  fmt.Sprintf("%f", roomTemp.TemperatureF),
 	}
 
 	_, err = h.store.StopPlunge(r.Context(), params)

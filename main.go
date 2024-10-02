@@ -16,6 +16,7 @@ import (
 	plungesV1 "github.com/KyleBrandon/plunger-server/services/plunges/v1"
 	plungesV2 "github.com/KyleBrandon/plunger-server/services/plunges/v2"
 	"github.com/KyleBrandon/plunger-server/services/pump"
+	"github.com/KyleBrandon/plunger-server/services/status"
 	"github.com/KyleBrandon/plunger-server/services/temperatures"
 	"github.com/KyleBrandon/plunger-server/services/users"
 	"github.com/joho/godotenv"
@@ -27,6 +28,7 @@ const CONFIG_FILENAME string = "config.json"
 type serverConfig struct {
 	ServerPort  string
 	DatabaseURL string
+	PlungeState *plungesV2.PlungeState
 	Sensors     sensor.Sensors
 	DB          *database.Queries
 	JobManager  jobs.JobManager
@@ -63,8 +65,11 @@ func main() {
 	plungesHandlerV1 := plungesV1.NewHandler(config.DB, config.Sensors)
 	plungesHandlerV1.RegisterRoutes(mux)
 
-	plungesHandlerV2 := plungesV2.NewHandler(config.DB, config.Sensors)
+	plungesHandlerV2 := plungesV2.NewHandler(config.DB, config.Sensors, config.PlungeState)
 	plungesHandlerV2.RegisterRoutes(mux)
+
+	statusHandler := status.NewHandler(config.DB, config.DB, config.Sensors, config.PlungeState)
+	statusHandler.RegisterRoutes(mux)
 
 	temperatureHandler := temperatures.NewHandler(config.Sensors)
 	temperatureHandler.RegisterRoutes(mux)
@@ -110,6 +115,7 @@ func initializeServerConfig() (serverConfig, error) {
 		ServerPort:  serverPort,
 		DatabaseURL: databaseURL,
 		Sensors:     sensorConfig,
+		PlungeState: &plungesV2.PlungeState{},
 	}
 
 	sc.openDatabase()

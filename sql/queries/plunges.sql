@@ -4,16 +4,16 @@ INSERT INTO plunges (
 VALUES ( $1, $2, $3, $4, true) 
 RETURNING *;
 
--- name: UpdatePlungeStatus :one
+-- name: UpdatePlungeAvgTemp :one
 UPDATE plunges
 SET avg_water_temp = $1, avg_room_temp = $2
 WHERE id = $3
 RETURNING *;
 
 -- name: StopPlunge :one
-UPDATE plunges 
-SET end_time = $1, end_water_temp = $2, end_room_temp = $3, avg_water_temp = $4, avg_room_temp = $5, running = FALSE, updated_at = CURRENT_TIMESTAMP
-WHERE id = $6
+UPDATE plunges
+SET end_time = $1, end_water_temp = $2, end_room_temp = $3, running = FALSE, updated_at = CURRENT_TIMESTAMP
+WHERE id = $4
 RETURNING *;
 
 -- name: GetLatestPlunge :one
