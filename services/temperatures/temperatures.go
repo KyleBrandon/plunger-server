@@ -34,12 +34,16 @@ func (h *Handler) handlerTemperaturesGet(w http.ResponseWriter, r *http.Request)
 }
 
 func convertFromSensorTemperatureReading(tr sensor.TemperatureReading) TemperatureReading {
+	errorMessage := ""
+	if tr.Err != nil {
+		errorMessage = tr.Err.Error()
+	}
 	return TemperatureReading{
 		Name:         tr.Name,
 		Description:  tr.Description,
 		Address:      tr.Address,
 		TemperatureC: tr.TemperatureC,
 		TemperatureF: tr.TemperatureF,
-		Err:          tr.Err.Error(),
+		Err:          errorMessage,
 	}
 }
