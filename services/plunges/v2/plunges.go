@@ -11,24 +11,22 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/KyleBrandon/plunger-server/utils"
-	"github.com/google/uuid"
 )
 
 const DefaultPlungeDurationSeconds = "180"
 
 // Clear the current plunge state
 func (s *PlungeState) Clear() {
-	s.ID = uuid.Nil
-	s.Running = false
 	s.WaterTempTotal = 0
 	s.RoomTempTotal = 0
 	s.TempReadCount = 0
 }
 
 // Start a plunger state
-func (s *PlungeState) Start(id uuid.UUID) {
-	s.ID = id
-	s.Running = true
+func (s *PlungeState) Start() {
+	s.WaterTempTotal = 0
+	s.RoomTempTotal = 0
+	s.TempReadCount = 0
 }
 
 // Update the temperatures
@@ -60,8 +58,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesGet")
-	h.state.MU.Lock()
-	defer h.state.MU.Unlock()
 
 	p, err := h.store.GetLatestPlunge(r.Context())
 	if err != nil {
@@ -110,7 +106,7 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 
 	// initalize the plunge context info
 	h.state.MU.Lock()
-	h.state.Start(plunge.ID)
+	h.state.Start()
 	h.state.MU.Unlock()
 
 	utils.RespondWithJSON(w, http.StatusCreated, databasePlungeToPlunge(plunge))
@@ -119,17 +115,14 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesStop")
 
-	h.state.MU.Lock()
-
-	if !h.state.Running {
-		utils.RespondWithError(w, http.StatusConflict, "No plunge timer running", nil)
-		h.state.MU.Unlock()
+	p, err := h.store.GetLatestPlunge(r.Context())
+	if err != nil {
+		utils.RespondWithError(w, http.StatusNotFound, "No plunge timer running", nil)
 		return
 	}
 
-	id := h.state.ID
+	h.state.MU.Lock()
 	h.state.Clear()
-
 	h.state.MU.Unlock()
 
 	roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
@@ -139,7 +132,7 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := database.StopPlungeParams{
-		ID:           id,
+		ID:           p.ID,
 		EndTime:      sql.NullTime{Valid: true, Time: time.Now().UTC()},
 		EndWaterTemp: fmt.Sprintf("%f", waterTemp.TemperatureF),
 		EndRoomTemp:  fmt.Sprintf("%f", roomTemp.TemperatureF),
