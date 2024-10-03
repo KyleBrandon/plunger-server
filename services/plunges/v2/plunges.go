@@ -145,13 +145,13 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 		EndRoomTemp:  fmt.Sprintf("%f", roomTemp.TemperatureF),
 	}
 
-	_, err := h.store.StopPlunge(r.Context(), params)
+	plunge, err := h.store.StopPlunge(r.Context(), params)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "failed to stop the plunge timer", err)
 		return
 	}
 
-	utils.RespondWithNoContent(w, http.StatusNoContent)
+	utils.RespondWithJSON(w, http.StatusOK, databasePlungeToPlunge(plunge))
 }
 
 func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {

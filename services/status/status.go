@@ -30,6 +30,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
 	slog.Info(">>handleWS: new incoming connection")
+	// TODO: put these in a config
 	opts := &websocket.AcceptOptions{
 		OriginPatterns: []string{"localhost:3000", "http://localhost:3000", "10.0.4.213:3000", "http://10.0.4.213:3000"},
 	}
