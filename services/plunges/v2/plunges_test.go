@@ -17,9 +17,8 @@ func TestPlungesGet(t *testing.T) {
 	t.Run("get plunge that has not been started", func(t *testing.T) {
 		store := mockPlungeStore{}
 		sensors := mockSensors{}
-		state := PlungeState{}
 
-		handler := NewHandler(&store, &sensors, &state)
+		handler := NewHandler(&store, &sensors)
 		store.plunge = database.Plunge{}
 		rr := utils.TestRequest(t, http.MethodGet, "/v2/plunges/status", nil, handler.handlePlungesGet)
 		utils.TestExpectedStatus(t, rr, http.StatusOK)
@@ -30,11 +29,8 @@ func TestPlungesGet(t *testing.T) {
 	t.Run("get pluge that is running", func(t *testing.T) {
 		store := mockPlungeStore{}
 		sensors := mockSensors{}
-		state := PlungeState{}
 
-		handler := NewHandler(&store, &sensors, &state)
-
-		handler.state.Running = true
+		handler := NewHandler(&store, &sensors)
 
 		store.plungeID = uuid.New()
 		store.plunge.Running = true
@@ -47,9 +43,8 @@ func TestPlungeStart(t *testing.T) {
 	t.Run("start plunge with invalid query parameter should fail", func(t *testing.T) {
 		store := mockPlungeStore{}
 		sensors := mockSensors{}
-		state := PlungeState{}
 
-		handler := NewHandler(&store, &sensors, &state)
+		handler := NewHandler(&store, &sensors)
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v2/plunges/start?duration=abcd", nil, handler.handlePlungesStart)
 		utils.TestExpectedStatus(t, rr, http.StatusBadRequest)
@@ -59,9 +54,8 @@ func TestPlungeStart(t *testing.T) {
 	t.Run("start plunge without query parameter expect default 3 minute plunge", func(t *testing.T) {
 		store := mockPlungeStore{}
 		sensors := mockSensors{}
-		state := PlungeState{}
 
-		handler := NewHandler(&store, &sensors, &state)
+		handler := NewHandler(&store, &sensors)
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v2/plunges/start", nil, handler.handlePlungesStart)
 		utils.TestExpectedStatus(t, rr, http.StatusCreated)
@@ -79,9 +73,8 @@ func TestPlungeStart(t *testing.T) {
 	t.Run("start plunge with query parameter expect 4 minute plunge", func(t *testing.T) {
 		store := mockPlungeStore{}
 		sensors := mockSensors{}
-		state := PlungeState{}
 
-		handler := NewHandler(&store, &sensors, &state)
+		handler := NewHandler(&store, &sensors)
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v2/plunges/start?duration=240", nil, handler.handlePlungesStart)
 		utils.TestExpectedStatus(t, rr, http.StatusCreated)

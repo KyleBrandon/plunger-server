@@ -2,7 +2,6 @@ package plunges
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
@@ -35,18 +34,7 @@ type PlungeStore interface {
 	StopPlunge(ctx context.Context, arg database.StopPlungeParams) (database.Plunge, error)
 }
 
-type PlungeState struct {
-	MU             sync.Mutex
-	ID             uuid.UUID
-	Running        bool
-	WaterTempTotal float64
-	RoomTempTotal  float64
-	TempReadCount  int64
-}
-
 type Handler struct {
 	store   PlungeStore
 	sensors sensor.Sensors
-
-	state *PlungeState
 }

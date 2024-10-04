@@ -28,7 +28,6 @@ const CONFIG_FILENAME string = "config.json"
 type serverConfig struct {
 	ServerPort  string
 	DatabaseURL string
-	PlungeState *plungesV2.PlungeState
 	Sensors     sensor.Sensors
 	DB          *database.Queries
 	JobManager  jobs.JobManager
@@ -65,10 +64,10 @@ func main() {
 	plungesHandlerV1 := plungesV1.NewHandler(config.DB, config.Sensors)
 	plungesHandlerV1.RegisterRoutes(mux)
 
-	plungesHandlerV2 := plungesV2.NewHandler(config.DB, config.Sensors, config.PlungeState)
+	plungesHandlerV2 := plungesV2.NewHandler(config.DB, config.Sensors)
 	plungesHandlerV2.RegisterRoutes(mux)
 
-	statusHandler := status.NewHandler(config.DB, config.DB, config.Sensors, config.PlungeState)
+	statusHandler := status.NewHandler(config.DB, config.DB, config.Sensors)
 	statusHandler.RegisterRoutes(mux)
 
 	temperatureHandler := temperatures.NewHandler(config.Sensors)
@@ -115,7 +114,6 @@ func initializeServerConfig() (serverConfig, error) {
 		ServerPort:  serverPort,
 		DatabaseURL: databaseURL,
 		Sensors:     sensorConfig,
-		PlungeState: &plungesV2.PlungeState{},
 	}
 
 	sc.openDatabase()

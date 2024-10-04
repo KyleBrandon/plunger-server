@@ -28,8 +28,6 @@ func (h *Handler) handlerTemperaturesGet(w http.ResponseWriter, r *http.Request)
 		results = append(results, convertFromSensorTemperatureReading(t))
 	}
 
-	slog.Info("result:", "results", results)
-
 	utils.RespondWithJSON(w, http.StatusOK, results)
 }
 

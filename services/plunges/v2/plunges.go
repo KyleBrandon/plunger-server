@@ -15,37 +15,11 @@ import (
 
 const DefaultPlungeDurationSeconds = "180"
 
-// Clear the current plunge state
-func (s *PlungeState) Clear() {
-	s.WaterTempTotal = 0
-	s.RoomTempTotal = 0
-	s.TempReadCount = 0
-}
-
-// Start a plunger state
-func (s *PlungeState) Start() {
-	s.WaterTempTotal = 0
-	s.RoomTempTotal = 0
-	s.TempReadCount = 0
-}
-
-// Update the temperatures
-func (s *PlungeState) UpdateAverageTemperatures(roomTemperature float64, waterTemperature float64) (float64, float64) {
-	s.WaterTempTotal += waterTemperature
-	s.RoomTempTotal += roomTemperature
-	s.TempReadCount++
-	avgWaterTemp := s.WaterTempTotal / float64(s.TempReadCount)
-	avgRoomTemp := s.RoomTempTotal / float64(s.TempReadCount)
-
-	return avgRoomTemp, avgWaterTemp
-}
-
-func NewHandler(store PlungeStore, sensors sensor.Sensors, state *PlungeState) *Handler {
+func NewHandler(store PlungeStore, sensors sensor.Sensors) *Handler {
 	h := Handler{}
 
 	h.store = store
 	h.sensors = sensors
-	h.state = state
 
 	return &h
 }
@@ -104,11 +78,6 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// initalize the plunge context info
-	h.state.MU.Lock()
-	h.state.Start()
-	h.state.MU.Unlock()
-
 	utils.RespondWithJSON(w, http.StatusCreated, databasePlungeToPlunge(plunge))
 }
 
@@ -120,10 +89,6 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithError(w, http.StatusNotFound, "No plunge timer running", nil)
 		return
 	}
-
-	h.state.MU.Lock()
-	h.state.Clear()
-	h.state.MU.Unlock()
 
 	roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
 	if roomTemp.Err != nil || waterTemp.Err != nil {

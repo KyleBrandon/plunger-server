@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
@@ -13,12 +14,12 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
-func NewHandler(store plunges.PlungeStore, jobStore jobs.JobStore, sensors sensor.Sensors, state *plunges.PlungeState) *Handler {
+func NewHandler(store plunges.PlungeStore, jobStore jobs.JobStore, sensors sensor.Sensors) *Handler {
 	h := Handler{
 		store,
 		jobStore,
 		sensors,
-		state,
+		PlungeState{},
 	}
 
 	return &h
@@ -26,6 +27,17 @@ func NewHandler(store plunges.PlungeStore, jobStore jobs.JobStore, sensors senso
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v2/status/ws", h.handleStatusWS)
+}
+
+// Update the temperatures
+func (h *Handler) UpdateAverageTemperatures(roomTemperature float64, waterTemperature float64) (float64, float64) {
+	h.state.WaterTempTotal += waterTemperature
+	h.state.RoomTempTotal += roomTemperature
+	h.state.TempReadCount++
+	avgWaterTemp := h.state.WaterTempTotal / float64(h.state.TempReadCount)
+	avgRoomTemp := h.state.RoomTempTotal / float64(h.state.TempReadCount)
+
+	return avgRoomTemp, avgWaterTemp
 }
 
 func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +62,6 @@ func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) buildPlungeStatus(ctx context.Context) (PlungeStatus, error) {
-	// get the most recent plunge and see if it's still running
 	p, err := h.store.GetLatestPlunge(ctx)
 	if err != nil {
 		// failed to read the plunge status.
@@ -70,10 +81,18 @@ func (h *Handler) buildPlungeStatus(ctx context.Context) (PlungeStatus, error) {
 		remaining = 0
 	}
 
-	avgWaterTemp := 0.0
 	waterTempError := ""
-	avgRoomTemp := 0.0
 	roomTempError := ""
+	avgWaterTemp, err := strconv.ParseFloat(p.AvgWaterTemp, 64)
+	if err != nil {
+		waterTempError = err.Error()
+	}
+
+	avgRoomTemp, err := strconv.ParseFloat(p.AvgRoomTemp, 64)
+	if err != nil {
+		roomTempError = err.Error()
+	}
+
 	roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
 	if roomTemp.Err != nil {
 		roomTempError = roomTemp.Err.Error()
@@ -83,12 +102,14 @@ func (h *Handler) buildPlungeStatus(ctx context.Context) (PlungeStatus, error) {
 		waterTempError = waterTemp.Err.Error()
 	}
 
-	h.state.MU.Lock()
-	avgRoomTemp, avgWaterTemp = h.state.UpdateAverageTemperatures(roomTemp.TemperatureF, waterTemp.TemperatureF)
-	h.state.MU.Unlock()
+	// while the plunge is running, track live average temperatures, otherwise display what's stored in the database
+	if p.Running {
+		h.state.MU.Lock()
+		avgRoomTemp, avgWaterTemp = h.UpdateAverageTemperatures(roomTemp.TemperatureF, waterTemp.TemperatureF)
+		h.state.MU.Unlock()
+	}
 
 	ps := PlungeStatus{
-		ID:               p.ID,
 		StartTime:        p.StartTime.Time,
 		StartWaterTemp:   p.StartWaterTemp,
 		StartRoomTemp:    p.StartRoomTemp,
@@ -124,7 +145,6 @@ func (h *Handler) buildOzoneStatus(ctx context.Context) (OzoneStatus, error) {
 	}
 
 	os := OzoneStatus{
-		ID:              job.ID,
 		Status:          status,
 		StartTime:       job.StartTime,
 		EndTime:         job.EndTime,
@@ -138,6 +158,8 @@ func (h *Handler) buildOzoneStatus(ctx context.Context) (OzoneStatus, error) {
 
 func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 	slog.Info(">>monitorPlunge")
+	defer slog.Info("<<monitorPlunge")
+
 	ticker := time.NewTicker(1 * time.Second)
 	heartbeatTicker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -151,7 +173,6 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 			return
 
 		case <-ticker.C:
-			slog.Info("monitorPlunge: send status")
 
 			roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
 			roomTempError := ""
@@ -211,8 +232,6 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 			}
 
 		case <-heartbeatTicker.C:
-			// send ping
-			slog.Info("monitorPlunge: send ping")
 			err := c.Ping(ctx)
 			if err != nil {
 				slog.Error("monitorPlunge: error sending ping", "error", err)
