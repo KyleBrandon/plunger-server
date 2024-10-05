@@ -44,7 +44,7 @@ func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
 	slog.Info(">>handleWS: new incoming connection")
 	// TODO: put these in a config
 	opts := &websocket.AcceptOptions{
-		OriginPatterns: []string{"localhost:3000", "http://localhost:3000", "10.0.4.213:3000", "http://10.0.4.213:3000"},
+		OriginPatterns: []string{"localhost:3000", "http://localhost:3000", "10.0.4.213:3000", "http://10.0.4.213:3000", "10.0.10.124:3000", "http://10.0.10.124:3000"},
 	}
 	c, err := websocket.Accept(w, r, opts)
 	if err != nil {
