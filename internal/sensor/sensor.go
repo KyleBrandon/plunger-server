@@ -52,7 +52,8 @@ type TemperatureReading struct {
 }
 
 type Sensors interface {
-	ReadTemperatures() ([]TemperatureReading, error)
+	ReadRoomAndWaterTemperature() (TemperatureReading, TemperatureReading)
+	ReadTemperatures() []TemperatureReading
 	IsLeakPresent() (bool, error)
 	TurnOzoneOn() error
 	TurnOzoneOff() error
@@ -93,25 +94,28 @@ func NewSensorConfig(sensorTimeout int, devices []DeviceConfig) (Sensors, error)
 func readTemperatureSensor(device *DeviceConfig, wg *sync.WaitGroup, readings chan<- TemperatureReading) {
 	defer wg.Done()
 
-	t, err := ds18b20.Temperature(device.Address)
-	slog.Info("read temperature", "room", device.Name, "temp", t)
-
-	t += device.CalibrationOffsetCelsius
-	slog.Info("callibrate temperature", "room", device.Name, "temp", t, "callibration_offset", device.CalibrationOffsetCelsius)
-
 	tr := TemperatureReading{
-		Name:         device.Name,
-		Description:  device.Description,
-		Address:      device.Address,
-		TemperatureC: t,
-		TemperatureF: (t * 9 / 5) + 32,
-		Err:          err,
+		Name:        device.Name,
+		Description: device.Description,
+		Address:     device.Address,
+	}
+
+	t, err := ds18b20.Temperature(device.Address)
+	if err != nil {
+		slog.Error("failed to read sensor", "name", device.Name, "address", device.Address, "error", err)
+		tr.Err = err
+	} else {
+
+		t += device.CalibrationOffsetCelsius
+		tr.TemperatureC = t
+		tr.TemperatureF = (t * 9 / 5) + 32
+		tr.Err = nil
 	}
 
 	readings <- tr
 }
 
-func (config *SensorConfig) ReadTemperatures() ([]TemperatureReading, error) {
+func (config *SensorConfig) ReadTemperatures() []TemperatureReading {
 	slog.Debug("ReadTemperatures")
 
 	var wg sync.WaitGroup
@@ -125,17 +129,30 @@ func (config *SensorConfig) ReadTemperatures() ([]TemperatureReading, error) {
 	wg.Wait()
 	close(readings)
 
-	var err error = nil
 	results := make([]TemperatureReading, 0, len(readings))
 	for reading := range readings {
-		if reading.Err != nil {
-			slog.Error("failed to read sensor", "name", reading.Name, "address", reading.Address, "error", reading.Err)
-			err = reading.Err
-		}
 		results = append(results, reading)
 	}
 
-	return results, err
+	return results
+}
+
+func (config *SensorConfig) ReadRoomAndWaterTemperature() (TemperatureReading, TemperatureReading) {
+	temperatures := config.ReadTemperatures()
+
+	var waterTemp TemperatureReading
+	var roomTemp TemperatureReading
+
+	for _, temp := range temperatures {
+		switch temp.Name {
+		case "Room":
+			roomTemp = temp
+		case "Water":
+			waterTemp = temp
+		}
+	}
+
+	return roomTemp, waterTemp
 }
 
 func (config *SensorConfig) IsLeakPresent() (bool, error) {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
+	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/KyleBrandon/plunger-server/utils"
 	"github.com/google/uuid"
 )
@@ -32,23 +33,15 @@ func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
 		resp.ElapsedTime = time.Now().UTC().Sub(resp.StartTime).Seconds()
 		resp.Running = true
 	}
-	if dbPlunge.StartWaterTemp.Valid {
-		resp.StartWaterTemp = dbPlunge.StartWaterTemp.String
-	}
-	if dbPlunge.EndWaterTemp.Valid {
-		resp.EndWaterTemp = dbPlunge.EndWaterTemp.String
-	}
-	if dbPlunge.StartRoomTemp.Valid {
-		resp.StartRoomTemp = dbPlunge.StartRoomTemp.String
-	}
-	if dbPlunge.EndRoomTemp.Valid {
-		resp.EndRoomTemp = dbPlunge.EndRoomTemp.String
-	}
+	resp.StartWaterTemp = dbPlunge.StartWaterTemp
+	resp.EndWaterTemp = dbPlunge.EndWaterTemp
+	resp.StartRoomTemp = dbPlunge.StartRoomTemp
+	resp.EndRoomTemp = dbPlunge.EndRoomTemp
 
 	return resp
 }
 
-func NewHandler(store PlungeStore, sensors Sensors) *Handler {
+func NewHandler(store PlungeStore, sensors sensor.Sensors) *Handler {
 	return &Handler{
 		store,
 		sensors,
@@ -70,14 +63,12 @@ func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 	if plungeID != "" && plungeID != r.URL.Path {
 		pid, err := uuid.Parse(plungeID)
 		if err != nil {
-			slog.Info("invalid plunge id")
 			utils.RespondWithError(w, http.StatusNotFound, "could not find plunge", err)
 			return
 		}
 
 		p, err := h.store.GetPlungeByID(r.Context(), pid)
 		if err != nil {
-			slog.Info("could not get plunge by id")
 			utils.RespondWithError(w, http.StatusNotFound, "could not find plunge", err)
 			return
 		}
@@ -114,29 +105,12 @@ func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesStart")
 
-	temperatures, err := h.sensors.ReadTemperatures()
-	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
-		return
-	}
-
-	waterTemp := sql.NullString{Valid: false}
-	roomTemp := sql.NullString{Valid: false}
-
-	for _, temp := range temperatures {
-		if temp.Name == "Room" {
-			roomTemp.Valid = true
-			roomTemp.String = fmt.Sprintf("%f", temp.TemperatureF)
-		} else if temp.Name == "Water" {
-			waterTemp.Valid = true
-			waterTemp.String = fmt.Sprintf("%f", temp.TemperatureF)
-		}
-	}
+	roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
 
 	params := database.StartPlungeParams{
 		StartTime:      sql.NullTime{Valid: true, Time: time.Now().UTC()},
-		StartWaterTemp: waterTemp,
-		StartRoomTemp:  roomTemp,
+		StartWaterTemp: fmt.Sprintf("%f", waterTemp.TemperatureF),
+		StartRoomTemp:  fmt.Sprintf("%f", roomTemp.TemperatureF),
 	}
 
 	plunge, err := h.store.StartPlunge(r.Context(), params)
@@ -162,35 +136,22 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	temperatures, err := h.sensors.ReadTemperatures()
+	roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
 	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to read the temperature at stop plunge", err)
 		return
-	}
-
-	waterTemp := sql.NullString{Valid: false}
-	roomTemp := sql.NullString{Valid: false}
-
-	for _, temp := range temperatures {
-		if temp.Name == "Room" {
-			roomTemp.Valid = true
-			roomTemp.String = fmt.Sprintf("%f", temp.TemperatureF)
-		} else if temp.Name == "Water" {
-			waterTemp.Valid = true
-			waterTemp.String = fmt.Sprintf("%f", temp.TemperatureF)
-		}
 	}
 
 	params := database.StopPlungeParams{
 		ID:           pid,
 		EndTime:      sql.NullTime{Valid: true, Time: time.Now().UTC()},
-		EndWaterTemp: waterTemp,
-		EndRoomTemp:  roomTemp,
+		EndWaterTemp: fmt.Sprintf("%f", waterTemp.TemperatureF),
+		EndRoomTemp:  fmt.Sprintf("%f", roomTemp.TemperatureF),
 	}
 
 	_, err = h.store.StopPlunge(r.Context(), params)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to update the plunge to stop", err)
 		return
 	}
 

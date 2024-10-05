@@ -13,7 +13,7 @@ import (
 )
 
 const getLatestPlunge = `-- name: GetLatestPlunge :one
-SELECT id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp FROM plunges 
+SELECT id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp, running, expected_duration, avg_water_temp, avg_room_temp FROM plunges 
 ORDER BY created_at DESC
 LIMIT 1
 `
@@ -31,12 +31,16 @@ func (q *Queries) GetLatestPlunge(ctx context.Context) (Plunge, error) {
 		&i.EndTime,
 		&i.EndWaterTemp,
 		&i.EndRoomTemp,
+		&i.Running,
+		&i.ExpectedDuration,
+		&i.AvgWaterTemp,
+		&i.AvgRoomTemp,
 	)
 	return i, err
 }
 
 const getPlungeByID = `-- name: GetPlungeByID :one
-SELECT id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp FROM plunges
+SELECT id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp, running, expected_duration, avg_water_temp, avg_room_temp FROM plunges
 WHERE id = $1
 `
 
@@ -53,12 +57,16 @@ func (q *Queries) GetPlungeByID(ctx context.Context, id uuid.UUID) (Plunge, erro
 		&i.EndTime,
 		&i.EndWaterTemp,
 		&i.EndRoomTemp,
+		&i.Running,
+		&i.ExpectedDuration,
+		&i.AvgWaterTemp,
+		&i.AvgRoomTemp,
 	)
 	return i, err
 }
 
 const getPlunges = `-- name: GetPlunges :many
-SELECT id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp FROM plunges 
+SELECT id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp, running, expected_duration, avg_water_temp, avg_room_temp FROM plunges 
 ORDER BY created_at DESC
 `
 
@@ -81,6 +89,10 @@ func (q *Queries) GetPlunges(ctx context.Context) ([]Plunge, error) {
 			&i.EndTime,
 			&i.EndWaterTemp,
 			&i.EndRoomTemp,
+			&i.Running,
+			&i.ExpectedDuration,
+			&i.AvgWaterTemp,
+			&i.AvgRoomTemp,
 		); err != nil {
 			return nil, err
 		}
@@ -97,19 +109,25 @@ func (q *Queries) GetPlunges(ctx context.Context) ([]Plunge, error) {
 
 const startPlunge = `-- name: StartPlunge :one
 INSERT INTO plunges (
-    start_time, start_water_temp, start_room_temp
-) VALUES ( $1, $2, $3)
-RETURNING id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp
+    start_time, start_water_temp, start_room_temp, expected_duration, running) 
+VALUES ( $1, $2, $3, $4, true) 
+RETURNING id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp, running, expected_duration, avg_water_temp, avg_room_temp
 `
 
 type StartPlungeParams struct {
-	StartTime      sql.NullTime
-	StartWaterTemp sql.NullString
-	StartRoomTemp  sql.NullString
+	StartTime        sql.NullTime
+	StartWaterTemp   string
+	StartRoomTemp    string
+	ExpectedDuration int32
 }
 
 func (q *Queries) StartPlunge(ctx context.Context, arg StartPlungeParams) (Plunge, error) {
-	row := q.db.QueryRowContext(ctx, startPlunge, arg.StartTime, arg.StartWaterTemp, arg.StartRoomTemp)
+	row := q.db.QueryRowContext(ctx, startPlunge,
+		arg.StartTime,
+		arg.StartWaterTemp,
+		arg.StartRoomTemp,
+		arg.ExpectedDuration,
+	)
 	var i Plunge
 	err := row.Scan(
 		&i.ID,
@@ -121,21 +139,25 @@ func (q *Queries) StartPlunge(ctx context.Context, arg StartPlungeParams) (Plung
 		&i.EndTime,
 		&i.EndWaterTemp,
 		&i.EndRoomTemp,
+		&i.Running,
+		&i.ExpectedDuration,
+		&i.AvgWaterTemp,
+		&i.AvgRoomTemp,
 	)
 	return i, err
 }
 
 const stopPlunge = `-- name: StopPlunge :one
-UPDATE plunges 
-SET end_time = $1, end_water_temp = $2, end_room_temp = $3, updated_at = CURRENT_TIMESTAMP
+UPDATE plunges
+SET end_time = $1, end_water_temp = $2, end_room_temp = $3, running = FALSE, updated_at = CURRENT_TIMESTAMP
 WHERE id = $4
-RETURNING id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp
+RETURNING id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp, running, expected_duration, avg_water_temp, avg_room_temp
 `
 
 type StopPlungeParams struct {
 	EndTime      sql.NullTime
-	EndWaterTemp sql.NullString
-	EndRoomTemp  sql.NullString
+	EndWaterTemp string
+	EndRoomTemp  string
 	ID           uuid.UUID
 }
 
@@ -157,6 +179,44 @@ func (q *Queries) StopPlunge(ctx context.Context, arg StopPlungeParams) (Plunge,
 		&i.EndTime,
 		&i.EndWaterTemp,
 		&i.EndRoomTemp,
+		&i.Running,
+		&i.ExpectedDuration,
+		&i.AvgWaterTemp,
+		&i.AvgRoomTemp,
+	)
+	return i, err
+}
+
+const updatePlungeAvgTemp = `-- name: UpdatePlungeAvgTemp :one
+UPDATE plunges
+SET avg_water_temp = $1, avg_room_temp = $2
+WHERE id = $3
+RETURNING id, created_at, updated_at, start_time, start_water_temp, start_room_temp, end_time, end_water_temp, end_room_temp, running, expected_duration, avg_water_temp, avg_room_temp
+`
+
+type UpdatePlungeAvgTempParams struct {
+	AvgWaterTemp string
+	AvgRoomTemp  string
+	ID           uuid.UUID
+}
+
+func (q *Queries) UpdatePlungeAvgTemp(ctx context.Context, arg UpdatePlungeAvgTempParams) (Plunge, error) {
+	row := q.db.QueryRowContext(ctx, updatePlungeAvgTemp, arg.AvgWaterTemp, arg.AvgRoomTemp, arg.ID)
+	var i Plunge
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StartTime,
+		&i.StartWaterTemp,
+		&i.StartRoomTemp,
+		&i.EndTime,
+		&i.EndWaterTemp,
+		&i.EndRoomTemp,
+		&i.Running,
+		&i.ExpectedDuration,
+		&i.AvgWaterTemp,
+		&i.AvgRoomTemp,
 	)
 	return i, err
 }

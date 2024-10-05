@@ -31,12 +31,7 @@ type PlungeStore interface {
 	StopPlunge(ctx context.Context, arg database.StopPlungeParams) (database.Plunge, error)
 }
 
-// TODO: Clean up the sensor interface
-type Sensors interface {
-	ReadTemperatures() ([]sensor.TemperatureReading, error)
-}
-
 type Handler struct {
 	store   PlungeStore
-	sensors Sensors
+	sensors sensor.Sensors
 }

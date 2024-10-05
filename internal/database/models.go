@@ -33,15 +33,19 @@ type Job struct {
 }
 
 type Plunge struct {
-	ID             uuid.UUID
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	StartTime      sql.NullTime
-	StartWaterTemp sql.NullString
-	StartRoomTemp  sql.NullString
-	EndTime        sql.NullTime
-	EndWaterTemp   sql.NullString
-	EndRoomTemp    sql.NullString
+	ID               uuid.UUID
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	StartTime        sql.NullTime
+	StartWaterTemp   string
+	StartRoomTemp    string
+	EndTime          sql.NullTime
+	EndWaterTemp     string
+	EndRoomTemp      string
+	Running          bool
+	ExpectedDuration int32
+	AvgWaterTemp     string
+	AvgRoomTemp      string
 }
 
 type User struct {
