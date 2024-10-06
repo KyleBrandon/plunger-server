@@ -23,7 +23,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-const CONFIG_FILENAME string = "config.json"
+const CONFIG_FILENAME string = "./config/config.json"
 
 type serverConfig struct {
 	ServerPort  string
