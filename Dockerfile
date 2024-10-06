@@ -34,6 +34,7 @@ WORKDIR /app
 
 # Copy the pre-built Go binary from the GitHub Action build step
 COPY --from=builder /plunger-server /app/plunger_server
+COPY entrypoint.sh /app/entrypoint.sh
 COPY config_template.json /app/config_template.json
 
 RUN chmod +x /app/entrypoint.sh
