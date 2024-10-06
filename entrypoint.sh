@@ -11,4 +11,4 @@ else
 fi
 
 # Run the main application
-exec "./plunger-server"
+exec plunger-server
