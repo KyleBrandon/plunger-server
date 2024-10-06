@@ -1,3 +1,4 @@
+#!/bin/sh
 #Path to the mounted volume where the config will be placed
 CONFIG_PATH="/app/config/config.json"
 
@@ -11,4 +12,4 @@ else
 fi
 
 # Run the main application
-# exec plunger-server
+exec plunger-server
