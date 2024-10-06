@@ -64,8 +64,8 @@ jobs:
       # Stop and remove the existing container
       - name: Stop and Remove Existing Docker Container
         run: |
-          docker stop kylebrandon/plunger-server || true
-          docker rm kylebrandon/plunger-server || true
+          docker stop plunger-server || true
+          docker rm plunger-server || true
 
       # Deploy Docker container
       - name: Run Docker Container
