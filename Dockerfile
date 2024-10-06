@@ -33,7 +33,7 @@ ENV PORT=${PORT}
 WORKDIR /app
 
 # Copy the pre-built Go binary from the GitHub Action build step
-COPY --from=builder /plunger-server /app/plunger_server
+COPY --from=builder /plunger-server /app/plunger-server
 COPY entrypoint.sh /app/entrypoint.sh
 COPY config_template.json /app/config_template.json
 

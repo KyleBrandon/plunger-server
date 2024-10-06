@@ -12,4 +12,4 @@ else
 fi
 
 # Run the main application
-exec /app/plunger-server
+exec /app/plunger-server "$@"
