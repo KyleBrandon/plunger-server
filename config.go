@@ -11,6 +11,7 @@ import (
 type Config struct {
 	Devices              []sensor.DeviceConfig `json:"devices"`
 	SensorTimeoutSeconds int                   `json:"sensor_timeout_seconds"`
+	OriginPatterns       []string              `json:"origin_patterns"`
 }
 
 func LoadConfigFile(filename string) (Config, error) {

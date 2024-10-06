@@ -33,12 +33,15 @@ ENV PORT=${PORT}
 WORKDIR /app
 
 # Copy the pre-built Go binary from the GitHub Action build step
-COPY --from=builder /plunger-server .
-COPY config.json .
+COPY --from=builder /plunger-server /app/plunger-server
+COPY entrypoint.sh /app/entrypoint.sh
+COPY config_template.json /app/config_template.json
+
+RUN chmod +x /app/entrypoint.sh
 
 # Expose the port for the Go web server
 EXPOSE ${PORT}
 
 # Run the binary and pass in the necessary environment variables
-CMD ["./plunger-server"]
+ENTRYPOINT [ "/app/entrypoint.sh" ]
 

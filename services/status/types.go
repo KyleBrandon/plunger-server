@@ -60,9 +60,10 @@ type (
 	}
 
 	Handler struct {
-		store    plunges.PlungeStore
-		jobStore jobs.JobStore
-		sensors  sensor.Sensors
-		state    PlungeState
+		store          plunges.PlungeStore
+		jobStore       jobs.JobStore
+		sensors        sensor.Sensors
+		state          PlungeState
+		originPatterns []string
 	}
 )

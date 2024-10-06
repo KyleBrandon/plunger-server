@@ -41,5 +41,13 @@
       "description": "Control ozone on/off",
       "normally_on": false
     }
+  ],
+  "origin_patterns": [
+    "localhost:3000",
+    "http://localhost:3000",
+    "10.0.4.213:3000",
+    "http://10.0.4.213:3000",
+    "10.0.10.124:3000",
+    "http://10.0.10.124:3000"
   ]
 }
