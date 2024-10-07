@@ -2,16 +2,20 @@ package status
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
+	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/KyleBrandon/plunger-server/services/plunges/v2"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	"github.com/google/uuid"
 )
 
 func NewHandler(store plunges.PlungeStore, jobStore jobs.JobStore, sensors sensor.Sensors, originPatterns []string) *Handler {
@@ -31,7 +35,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 // Update the temperatures
-func (h *Handler) UpdateAverageTemperatures(roomTemperature float64, waterTemperature float64) (float64, float64) {
+func (h *Handler) updateAverageTemperatures(roomTemperature float64, waterTemperature float64) (float64, float64) {
 	h.state.WaterTempTotal += waterTemperature
 	h.state.RoomTempTotal += roomTemperature
 	h.state.TempReadCount++
@@ -61,7 +65,7 @@ func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
 	slog.Info("<<handleWS")
 }
 
-func (h *Handler) buildPlungeStatus(ctx context.Context) (PlungeStatus, error) {
+func (h *Handler) buildPlungeStatus(ctx context.Context, wg *sync.WaitGroup) (PlungeStatus, error) {
 	p, err := h.store.GetLatestPlunge(ctx)
 	if err != nil {
 		// failed to read the plunge status.
@@ -105,8 +109,22 @@ func (h *Handler) buildPlungeStatus(ctx context.Context) (PlungeStatus, error) {
 	// while the plunge is running, track live average temperatures, otherwise display what's stored in the database
 	if p.Running {
 		h.state.MU.Lock()
-		avgRoomTemp, avgWaterTemp = h.UpdateAverageTemperatures(roomTemp.TemperatureF, waterTemp.TemperatureF)
+		avgRoomTemp, avgWaterTemp = h.updateAverageTemperatures(roomTemp.TemperatureF, waterTemp.TemperatureF)
 		h.state.MU.Unlock()
+
+		wg.Add(1)
+		go func(id uuid.UUID, avgRoomTemp float64, avgWaterTemp float64) {
+			defer wg.Done()
+			arg := database.UpdatePlungeAvgTempParams{
+				ID:           p.ID,
+				AvgRoomTemp:  fmt.Sprintf("%f", avgRoomTemp),
+				AvgWaterTemp: fmt.Sprintf("%f", avgWaterTemp),
+			}
+			_, err = h.store.UpdatePlungeAvgTemp(ctx, arg)
+			if err != nil {
+				slog.Error("Failed to update current plunge avgerage temperature", "error", err)
+			}
+		}(p.ID, avgRoomTemp, avgWaterTemp)
 	}
 
 	ps := PlungeStatus{
@@ -165,6 +183,9 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 	defer ticker.Stop()
 	defer heartbeatTicker.Stop()
 
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -198,7 +219,7 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 			}
 
 			plungeError := ""
-			ps, err := h.buildPlungeStatus(ctx)
+			ps, err := h.buildPlungeStatus(ctx, &wg)
 			if err != nil {
 				plungeError = err.Error()
 			}
