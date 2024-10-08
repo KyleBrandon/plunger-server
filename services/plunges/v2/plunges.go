@@ -1,6 +1,7 @@
 package plunges
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -73,7 +74,7 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Save start to database
-		_, err := h.store.StartPlunge(r.Context(), params)
+		_, err := h.store.StartPlunge(context.Background(), params)
 		if err != nil {
 			slog.Error("failed to start plunge timer", "error", err)
 		}
