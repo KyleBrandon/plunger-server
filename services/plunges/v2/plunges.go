@@ -59,13 +59,13 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go func() {
-		roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
-		if roomTemp.Err != nil || waterTemp.Err != nil {
-			utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", roomTemp.Err)
-			return
-		}
+	roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
+	if roomTemp.Err != nil || waterTemp.Err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", roomTemp.Err)
+		return
+	}
 
+	go func() {
 		params := database.StartPlungeParams{
 			StartTime:        sql.NullTime{Valid: true, Time: time.Now().UTC()},
 			StartWaterTemp:   fmt.Sprintf("%f", waterTemp.TemperatureF),
