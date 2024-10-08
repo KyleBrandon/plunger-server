@@ -58,27 +58,28 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
-	if roomTemp.Err != nil || waterTemp.Err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", roomTemp.Err)
-		return
-	}
+	go func() {
+		roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
+		if roomTemp.Err != nil || waterTemp.Err != nil {
+			utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", roomTemp.Err)
+			return
+		}
 
-	params := database.StartPlungeParams{
-		StartTime:        sql.NullTime{Valid: true, Time: time.Now().UTC()},
-		StartWaterTemp:   fmt.Sprintf("%f", waterTemp.TemperatureF),
-		StartRoomTemp:    fmt.Sprintf("%f", roomTemp.TemperatureF),
-		ExpectedDuration: int32(duration),
-	}
+		params := database.StartPlungeParams{
+			StartTime:        sql.NullTime{Valid: true, Time: time.Now().UTC()},
+			StartWaterTemp:   fmt.Sprintf("%f", waterTemp.TemperatureF),
+			StartRoomTemp:    fmt.Sprintf("%f", roomTemp.TemperatureF),
+			ExpectedDuration: int32(duration),
+		}
 
-	// Save start to database
-	plunge, err := h.store.StartPlunge(r.Context(), params)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
-		return
-	}
+		// Save start to database
+		_, err := h.store.StartPlunge(r.Context(), params)
+		if err != nil {
+			slog.Error("failed to start plunge timer", "error", err)
+		}
+	}()
 
-	utils.RespondWithJSON(w, http.StatusCreated, databasePlungeToPlunge(plunge))
+	utils.RespondWithJSON(w, http.StatusCreated, PlungeResponse{Running: true, ExpectedDuration: int32(duration)})
 }
 
 func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
