@@ -77,7 +77,7 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	waterTemp, roomTemp, err := h.getRecentTemperatures(r.Context())
+	roomTemp, waterTemp, err := h.getRecentTemperatures(r.Context())
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
 		return
@@ -109,7 +109,7 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	waterTemp, roomTemp, err := h.getRecentTemperatures(r.Context())
+	roomTemp, waterTemp, err := h.getRecentTemperatures(r.Context())
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "failed to stop the plunge timer", err)
 		return
