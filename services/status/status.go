@@ -6,21 +6,21 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/KyleBrandon/plunger-server/services/plunges/v2"
+	"github.com/KyleBrandon/plunger-server/services/temperatures"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
-	"github.com/google/uuid"
 )
 
-func NewHandler(store plunges.PlungeStore, jobStore jobs.JobStore, sensors sensor.Sensors, originPatterns []string) *Handler {
+func NewHandler(store plunges.PlungeStore, temperatureStore temperatures.TemperatureStore, jobStore jobs.JobStore, sensors sensor.Sensors, originPatterns []string) *Handler {
 	h := Handler{
 		store,
+		temperatureStore,
 		jobStore,
 		sensors,
 		PlungeState{},
@@ -35,9 +35,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 // Update the temperatures
-func (h *Handler) updateAverageTemperatures(roomTemperature float64, waterTemperature float64) (float64, float64) {
-	h.state.WaterTempTotal += waterTemperature
-	h.state.RoomTempTotal += roomTemperature
+func (h *Handler) updateAverageTemperatures(roomTemp float64, waterTemp float64) (float64, float64) {
+	h.state.WaterTempTotal += waterTemp
+	h.state.RoomTempTotal += roomTemp
 	h.state.TempReadCount++
 	avgWaterTemp := h.state.WaterTempTotal / float64(h.state.TempReadCount)
 	avgRoomTemp := h.state.RoomTempTotal / float64(h.state.TempReadCount)
@@ -65,7 +65,7 @@ func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
 	slog.Info("<<handleWS")
 }
 
-func (h *Handler) buildPlungeStatus(ctx context.Context, wg *sync.WaitGroup) (PlungeStatus, error) {
+func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, waterTemp float64) (PlungeStatus, error) {
 	p, err := h.store.GetLatestPlunge(ctx)
 	if err != nil {
 		// failed to read the plunge status.
@@ -85,46 +85,31 @@ func (h *Handler) buildPlungeStatus(ctx context.Context, wg *sync.WaitGroup) (Pl
 		remaining = 0
 	}
 
-	waterTempError := ""
-	roomTempError := ""
 	avgWaterTemp, err := strconv.ParseFloat(p.AvgWaterTemp, 64)
 	if err != nil {
-		waterTempError = err.Error()
+		avgWaterTemp = 0.0
 	}
 
 	avgRoomTemp, err := strconv.ParseFloat(p.AvgRoomTemp, 64)
 	if err != nil {
-		roomTempError = err.Error()
-	}
-
-	roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
-	if roomTemp.Err != nil {
-		roomTempError = roomTemp.Err.Error()
-	}
-
-	if waterTemp.Err != nil {
-		waterTempError = waterTemp.Err.Error()
+		avgRoomTemp = 0.0
 	}
 
 	// while the plunge is running, track live average temperatures, otherwise display what's stored in the database
 	if p.Running {
 		h.state.MU.Lock()
-		avgRoomTemp, avgWaterTemp = h.updateAverageTemperatures(roomTemp.TemperatureF, waterTemp.TemperatureF)
+		avgRoomTemp, avgWaterTemp = h.updateAverageTemperatures(roomTemp, waterTemp)
 		h.state.MU.Unlock()
 
-		wg.Add(1)
-		go func(id uuid.UUID, avgRoomTemp float64, avgWaterTemp float64) {
-			defer wg.Done()
-			arg := database.UpdatePlungeAvgTempParams{
-				ID:           p.ID,
-				AvgRoomTemp:  fmt.Sprintf("%f", avgRoomTemp),
-				AvgWaterTemp: fmt.Sprintf("%f", avgWaterTemp),
-			}
-			_, err = h.store.UpdatePlungeAvgTemp(ctx, arg)
-			if err != nil {
-				slog.Error("Failed to update current plunge avgerage temperature", "error", err)
-			}
-		}(p.ID, avgRoomTemp, avgWaterTemp)
+		arg := database.UpdatePlungeAvgTempParams{
+			ID:           p.ID,
+			AvgRoomTemp:  fmt.Sprintf("%f", avgRoomTemp),
+			AvgWaterTemp: fmt.Sprintf("%f", avgWaterTemp),
+		}
+		_, err = h.store.UpdatePlungeAvgTemp(ctx, arg)
+		if err != nil {
+			slog.Error("Failed to update current plunge avgerage temperature", "error", err)
+		}
 	}
 
 	ps := PlungeStatus{
@@ -139,9 +124,7 @@ func (h *Handler) buildPlungeStatus(ctx context.Context, wg *sync.WaitGroup) (Pl
 		Remaining:        remaining.Seconds(),
 		ElapsedTime:      elapsedTime.Seconds(),
 		AvgWaterTemp:     avgWaterTemp,
-		WaterTempError:   waterTempError,
 		AvgRoomTemp:      avgRoomTemp,
-		RoomTempError:    roomTempError,
 	}
 	return ps, nil
 }
@@ -174,6 +157,38 @@ func (h *Handler) buildOzoneStatus(ctx context.Context) (OzoneStatus, error) {
 	return os, nil
 }
 
+func (h *Handler) getRecentTemperatures(ctx context.Context) (float64, string, float64, string) {
+	roomTemp := 0.0
+	roomTempError := ""
+	waterTemp := 0.0
+	waterTempError := ""
+
+	temperature, err := h.temperatureStore.FindMostRecentTemperatures(ctx)
+	// if the room temperature was read successfully, convert it into a float
+	if err == nil && temperature.RoomTemp.Valid {
+		roomTemp, err = strconv.ParseFloat(temperature.RoomTemp.String, 64)
+	}
+
+	// if we failed to read or conver the room temperature set it to a default and set an error message
+	if err != nil || !temperature.RoomTemp.Valid {
+		roomTemp = 0.0
+		roomTempError = "No current room temperature"
+	}
+
+	// if the water temperature was read successfully, convert it into a float
+	if err == nil && temperature.WaterTemp.Valid {
+		waterTemp, err = strconv.ParseFloat(temperature.WaterTemp.String, 64)
+	}
+
+	// if we failed to read or conver the room temperature set it to a default and set an error message
+	if err != nil || !temperature.WaterTemp.Valid {
+		waterTemp = 0.0
+		waterTempError = "No current water temperature"
+	}
+
+	return roomTemp, roomTempError, waterTemp, waterTempError
+}
+
 func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 	slog.Info(">>monitorPlunge")
 	defer slog.Info("<<monitorPlunge")
@@ -182,9 +197,6 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 	heartbeatTicker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	defer heartbeatTicker.Stop()
-
-	var wg sync.WaitGroup
-	defer wg.Wait()
 
 	for {
 		select {
@@ -195,17 +207,7 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 
 		case <-ticker.C:
 
-			roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
-			roomTempError := ""
-			if roomTemp.Err != nil {
-				roomTempError = roomTemp.Err.Error()
-			}
-
-			waterTempError := ""
-			if waterTemp.Err != nil {
-				waterTempError = waterTemp.Err.Error()
-			}
-
+			roomTemp, roomTempError, waterTemp, waterTempError := h.getRecentTemperatures(ctx)
 			leakError := ""
 			leakDetected, err := h.sensors.IsLeakPresent()
 			if err != nil {
@@ -219,7 +221,7 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 			}
 
 			plungeError := ""
-			ps, err := h.buildPlungeStatus(ctx, &wg)
+			ps, err := h.buildPlungeStatus(ctx, roomTemp, waterTemp)
 			if err != nil {
 				plungeError = err.Error()
 			}
@@ -235,9 +237,9 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 				PlungeError:    plungeError,
 				OzoneStatus:    os,
 				OzoneError:     ozoneError,
-				WaterTemp:      waterTemp.TemperatureF,
+				WaterTemp:      waterTemp,
 				WaterTempError: waterTempError,
-				RoomTemp:       roomTemp.TemperatureF,
+				RoomTemp:       roomTemp,
 				RoomTempError:  roomTempError,
 				LeakDetected:   leakDetected,
 				LeakError:      leakError,

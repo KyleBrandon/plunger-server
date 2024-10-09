@@ -49,6 +49,9 @@ func main() {
 	healthHandler := health.NewHandler()
 	healthHandler.RegisterRoutes(mux)
 
+	temperatureHandler := temperatures.NewHandler(config.DB, config.Sensors)
+	temperatureHandler.RegisterRoutes(mux)
+
 	userHandler := users.NewHandler(config.DB)
 	userHandler.RegisterRoutes(mux)
 
@@ -65,14 +68,11 @@ func main() {
 	plungesHandlerV1 := plungesV1.NewHandler(config.DB, config.Sensors)
 	plungesHandlerV1.RegisterRoutes(mux)
 
-	plungesHandlerV2 := plungesV2.NewHandler(config.DB, config.Sensors)
+	plungesHandlerV2 := plungesV2.NewHandler(config.DB, config.DB, config.Sensors)
 	plungesHandlerV2.RegisterRoutes(mux)
 
-	statusHandler := status.NewHandler(config.DB, config.DB, config.Sensors, config.OriginPatterns)
+	statusHandler := status.NewHandler(config.DB, config.DB, config.DB, config.Sensors, config.OriginPatterns)
 	statusHandler.RegisterRoutes(mux)
-
-	temperatureHandler := temperatures.NewHandler(config.Sensors)
-	temperatureHandler.RegisterRoutes(mux)
 
 	config.runServer(mux)
 }
