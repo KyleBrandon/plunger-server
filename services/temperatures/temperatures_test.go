@@ -1,25 +1,28 @@
 package temperatures
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/KyleBrandon/plunger-server/utils"
 )
 
 func TestReadTemperatures(t *testing.T) {
 	t.Run("should fail to read if sensors are non-responsive", func(t *testing.T) {
-		store := mockSensors{}
-		store.temperatures = []sensor.TemperatureReading{
+		store := mockStore{}
+		s := mockSensors{}
+		s.temperatures = []sensor.TemperatureReading{
 			{
 				Err: errors.New("failed to read temperature"),
 			},
 		}
 
-		h := NewHandler(&store)
+		h := NewHandler(&store, &s)
 
 		rr := utils.TestRequest(t, http.MethodGet, "/v1/temperatures", nil, h.handlerTemperaturesGet)
 
@@ -33,8 +36,9 @@ func TestReadTemperatures(t *testing.T) {
 	})
 
 	t.Run("should read temperature sensors", func(t *testing.T) {
-		store := mockSensors{}
-		h := NewHandler(&store)
+		store := mockStore{}
+		sensor := mockSensors{}
+		h := NewHandler(&store, &sensor)
 
 		rr := utils.TestRequest(t, http.MethodGet, "/v1/temperatures", nil, h.handlerTemperaturesGet)
 
@@ -42,6 +46,19 @@ func TestReadTemperatures(t *testing.T) {
 			t.Errorf("expected status code %d, got %d", http.StatusOK, rr.Code)
 		}
 	})
+}
+
+type mockStore struct {
+	temperature database.Temperature
+	err         error
+}
+
+func (m *mockStore) FindMostRecentTemperatures(ctx context.Context) (database.Temperature, error) {
+	return m.temperature, m.err
+}
+
+func (m *mockStore) SaveTemperature(ctx context.Context, arg database.SaveTemperatureParams) (database.Temperature, error) {
+	return m.temperature, m.err
 }
 
 type mockSensors struct {

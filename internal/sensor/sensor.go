@@ -3,7 +3,6 @@ package sensor
 import (
 	"log/slog"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/stianeikeland/go-rpio/v4"
@@ -91,9 +90,7 @@ func NewSensorConfig(sensorTimeout int, devices []DeviceConfig) (Sensors, error)
 	return &sc, nil
 }
 
-func readTemperatureSensor(device *DeviceConfig, wg *sync.WaitGroup, readings chan<- TemperatureReading) {
-	defer wg.Done()
-
+func readTemperatureSensor(device *DeviceConfig) TemperatureReading {
 	tr := TemperatureReading{
 		Name:        device.Name,
 		Description: device.Description,
@@ -112,29 +109,20 @@ func readTemperatureSensor(device *DeviceConfig, wg *sync.WaitGroup, readings ch
 		tr.Err = nil
 	}
 
-	readings <- tr
+	return tr
 }
 
 func (config *SensorConfig) ReadTemperatures() []TemperatureReading {
 	slog.Debug("ReadTemperatures")
 
-	var wg sync.WaitGroup
-	wg.Add(len(config.TemperatureSensors))
-	readings := make(chan TemperatureReading, len(config.TemperatureSensors))
+	readings := make([]TemperatureReading, 0, len(config.TemperatureSensors))
 
 	for _, device := range config.TemperatureSensors {
-		go readTemperatureSensor(&device, &wg, readings)
+		tr := readTemperatureSensor(&device)
+		readings = append(readings, tr)
 	}
 
-	wg.Wait()
-	close(readings)
-
-	results := make([]TemperatureReading, 0, len(readings))
-	for reading := range readings {
-		results = append(results, reading)
-	}
-
-	return results
+	return readings
 }
 
 func (config *SensorConfig) ReadRoomAndWaterTemperature() (TemperatureReading, TemperatureReading) {

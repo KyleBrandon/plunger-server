@@ -48,6 +48,14 @@ type Plunge struct {
 	AvgRoomTemp      string
 }
 
+type Temperature struct {
+	ID        uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	WaterTemp sql.NullString
+	RoomTemp  sql.NullString
+}
+
 type User struct {
 	ID        uuid.UUID
 	Email     string

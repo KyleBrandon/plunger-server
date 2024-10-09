@@ -7,6 +7,7 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/KyleBrandon/plunger-server/services/plunges/v2"
+	"github.com/KyleBrandon/plunger-server/services/temperatures"
 )
 
 type (
@@ -32,9 +33,7 @@ type (
 		Remaining        float64 `json:"remaining_time"`
 		ElapsedTime      float64 `json:"elapsed_time"`
 		AvgWaterTemp     float64 `json:"average_water_temp"`
-		WaterTempError   string  `json:"water_temp_error"`
 		AvgRoomTemp      float64 `json:"average_room_temp"`
-		RoomTempError    string  `json:"room_temp_error"`
 	}
 
 	SystemStatus struct {
@@ -60,10 +59,11 @@ type (
 	}
 
 	Handler struct {
-		store          plunges.PlungeStore
-		jobStore       jobs.JobStore
-		sensors        sensor.Sensors
-		state          PlungeState
-		originPatterns []string
+		store            plunges.PlungeStore
+		temperatureStore temperatures.TemperatureStore
+		jobStore         jobs.JobStore
+		sensors          sensor.Sensors
+		state            PlungeState
+		originPatterns   []string
 	}
 )
