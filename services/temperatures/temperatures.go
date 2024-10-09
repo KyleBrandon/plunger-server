@@ -66,7 +66,7 @@ func (h *Handler) monitorTemperatures(ctx context.Context) {
 		rt, wt := h.sensors.ReadRoomAndWaterTemperature()
 		if rt.Err == nil {
 			roomTemp.Valid = true
-			roomTemp.String = fmt.Sprintf("%f", wt.TemperatureF)
+			roomTemp.String = fmt.Sprintf("%f", rt.TemperatureF)
 		} else {
 			slog.Error("failed to read the room temperature", "error", rt.Err)
 		}
