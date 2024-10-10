@@ -96,6 +96,7 @@ func runOzoneFunc(config *jobs.JobConfig, ctx context.Context, cancel context.Ca
 		select {
 
 		case <-ctx.Done():
+			slog.Info("Ozone finished")
 			// task was canceled or timedout
 			config.SensorConfig.TurnOzoneOff()
 			config.StopJob(jobs.JOBTYPE_OZONE_TIMER, "Success")
@@ -106,6 +107,8 @@ func runOzoneFunc(config *jobs.JobConfig, ctx context.Context, cancel context.Ca
 			// check to see if the task was canceled by the user
 			cancelRequested := config.IsJobCanceled(jobId)
 			if cancelRequested {
+				slog.Info("Ozone canceled by user")
+				config.SensorConfig.TurnOzoneOff()
 				cancel()
 				continue
 			}
