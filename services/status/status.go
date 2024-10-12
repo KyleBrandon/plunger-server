@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
-	"github.com/KyleBrandon/plunger-server/internal/jobs"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -126,16 +125,16 @@ func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, water
 }
 
 func (h *Handler) buildOzoneStatus(ctx context.Context) (OzoneStatus, error) {
-	job, err := h.store.GetLatestJobByType(ctx, jobs.JOBTYPE_OZONE_TIMER)
+	ozone, err := h.store.GetLatestOzone(ctx)
 	if err != nil {
 		return OzoneStatus{}, err
 	}
 
 	var status string
 	var timeLeft float64
-	if job.Status == jobs.JOBSTATUS_STARTED {
+	if ozone.Running {
 		status = "Running"
-		timeLeft = job.EndTime.Sub(time.Now().UTC()).Seconds()
+		timeLeft = ozone.EndTime.Time.Sub(time.Now().UTC()).Seconds()
 	} else {
 		status = "Stopped"
 		timeLeft = 0.0
@@ -143,11 +142,10 @@ func (h *Handler) buildOzoneStatus(ctx context.Context) (OzoneStatus, error) {
 
 	os := OzoneStatus{
 		Status:          status,
-		StartTime:       job.StartTime,
-		EndTime:         job.EndTime,
+		StartTime:       ozone.StartTime.Time,
+		EndTime:         ozone.EndTime.Time,
 		SecondsLeft:     timeLeft,
-		Result:          job.Result.String,
-		CancelRequested: job.CancelRequested,
+		CancelRequested: ozone.CancelRequested,
 	}
 
 	return os, nil

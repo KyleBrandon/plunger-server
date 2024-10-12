@@ -7,7 +7,6 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
-	"github.com/google/uuid"
 )
 
 type (
@@ -59,14 +58,10 @@ type (
 	}
 
 	StatusStore interface {
-		GetLatestJobByType(ctx context.Context, jobType int32) (database.Job, error)
 		FindMostRecentTemperatures(ctx context.Context) (database.Temperature, error)
 		GetLatestPlunge(ctx context.Context) (database.Plunge, error)
-		GetPlungeByID(ctx context.Context, id uuid.UUID) (database.Plunge, error)
-		GetPlunges(ctx context.Context) ([]database.Plunge, error)
-		StartPlunge(ctx context.Context, arg database.StartPlungeParams) (database.Plunge, error)
 		UpdatePlungeAvgTemp(ctx context.Context, arg database.UpdatePlungeAvgTempParams) (database.Plunge, error)
-		StopPlunge(ctx context.Context, arg database.StopPlungeParams) (database.Plunge, error)
+		GetLatestOzone(ctx context.Context) (database.Ozone, error)
 	}
 
 	Handler struct {
