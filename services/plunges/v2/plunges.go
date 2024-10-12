@@ -10,14 +10,12 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
-	"github.com/KyleBrandon/plunger-server/services/temperatures"
 	"github.com/KyleBrandon/plunger-server/utils"
 )
 
-func NewHandler(plungeStore PlungeStore, temperatureStore temperatures.TemperatureStore, sensors sensor.Sensors) *Handler {
+func NewHandler(store PlungeStore, sensors sensor.Sensors) *Handler {
 	h := Handler{
-		temperatureStore,
-		plungeStore,
+		store,
 		sensors,
 	}
 
@@ -33,7 +31,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesGet")
 
-	p, err := h.plungeStore.GetLatestPlunge(r.Context())
+	p, err := h.store.GetLatestPlunge(r.Context())
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, "could not find a current plunge", err)
 		return
@@ -42,25 +40,6 @@ func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 	plunges := databasePlungeToPlunge(p)
 
 	utils.RespondWithJSON(w, http.StatusOK, plunges)
-}
-
-func (h *Handler) getRecentTemperatures(ctx context.Context) (string, string, error) {
-	temperature, err := h.temperatureStore.FindMostRecentTemperatures(ctx)
-	if err != nil {
-		return "", "", err
-	}
-
-	waterTemp := "0.0"
-	roomTemp := "0.0"
-	if temperature.RoomTemp.Valid {
-		roomTemp = temperature.RoomTemp.String
-	}
-
-	if temperature.WaterTemp.Valid {
-		waterTemp = temperature.WaterTemp.String
-	}
-
-	return roomTemp, waterTemp, nil
 }
 
 func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +70,7 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save start to database
-	plunge, err := h.plungeStore.StartPlunge(r.Context(), params)
+	plunge, err := h.store.StartPlunge(r.Context(), params)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the plunge timer", err)
 		return
@@ -103,7 +82,7 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesStop")
 
-	p, err := h.plungeStore.GetLatestPlunge(r.Context())
+	p, err := h.store.GetLatestPlunge(r.Context())
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, "No plunge timer running", nil)
 		return
@@ -122,7 +101,7 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 		EndRoomTemp:  roomTemp,
 	}
 
-	plunge, err := h.plungeStore.StopPlunge(r.Context(), params)
+	plunge, err := h.store.StopPlunge(r.Context(), params)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "failed to stop the plunge timer", err)
 		return
@@ -154,4 +133,23 @@ func databasePlungeToPlunge(dbPlunge database.Plunge) PlungeResponse {
 	}
 
 	return resp
+}
+
+func (h *Handler) getRecentTemperatures(ctx context.Context) (string, string, error) {
+	temperature, err := h.store.FindMostRecentTemperatures(ctx)
+	if err != nil {
+		return "", "", err
+	}
+
+	waterTemp := "0.0"
+	roomTemp := "0.0"
+	if temperature.RoomTemp.Valid {
+		roomTemp = temperature.RoomTemp.String
+	}
+
+	if temperature.WaterTemp.Valid {
+		waterTemp = temperature.WaterTemp.String
+	}
+
+	return roomTemp, waterTemp, nil
 }

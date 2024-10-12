@@ -15,11 +15,10 @@ import (
 
 func TestPlungesGet(t *testing.T) {
 	t.Run("get plunge that has not been started", func(t *testing.T) {
-		temperatureStore := mockTemperatureStore{}
 		plungeStore := mockPlungeStore{}
 		sensors := mockSensors{}
 
-		handler := NewHandler(&plungeStore, &temperatureStore, &sensors)
+		handler := NewHandler(&plungeStore, &sensors)
 		plungeStore.plunge = database.Plunge{}
 		rr := utils.TestRequest(t, http.MethodGet, "/v2/plunges/status", nil, handler.handlePlungesGet)
 		utils.TestExpectedStatus(t, rr, http.StatusOK)
@@ -28,11 +27,10 @@ func TestPlungesGet(t *testing.T) {
 	})
 
 	t.Run("get pluge that is running", func(t *testing.T) {
-		temperatureStore := mockTemperatureStore{}
 		plungeStore := mockPlungeStore{}
 		sensors := mockSensors{}
 
-		handler := NewHandler(&plungeStore, &temperatureStore, &sensors)
+		handler := NewHandler(&plungeStore, &sensors)
 
 		plungeStore.plungeID = uuid.New()
 		plungeStore.plunge.Running = true
@@ -43,11 +41,10 @@ func TestPlungesGet(t *testing.T) {
 
 func TestPlungeStart(t *testing.T) {
 	t.Run("start plunge with invalid query parameter should fail", func(t *testing.T) {
-		temperatureStore := mockTemperatureStore{}
 		plungeStore := mockPlungeStore{}
 		sensors := mockSensors{}
 
-		handler := NewHandler(&plungeStore, &temperatureStore, &sensors)
+		handler := NewHandler(&plungeStore, &sensors)
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v2/plunges/start?duration=abcd", nil, handler.handlePlungesStart)
 		utils.TestExpectedStatus(t, rr, http.StatusBadRequest)
@@ -55,11 +52,10 @@ func TestPlungeStart(t *testing.T) {
 	})
 
 	t.Run("start plunge without query parameter expect default 3 minute plunge", func(t *testing.T) {
-		temperatureStore := mockTemperatureStore{}
 		plungeStore := mockPlungeStore{}
 		sensors := mockSensors{}
 
-		handler := NewHandler(&plungeStore, &temperatureStore, &sensors)
+		handler := NewHandler(&plungeStore, &sensors)
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v2/plunges/start", nil, handler.handlePlungesStart)
 		utils.TestExpectedStatus(t, rr, http.StatusCreated)
@@ -75,11 +71,10 @@ func TestPlungeStart(t *testing.T) {
 		}
 	})
 	t.Run("start plunge with query parameter expect 4 minute plunge", func(t *testing.T) {
-		temperatureStore := mockTemperatureStore{}
 		plungeStore := mockPlungeStore{}
 		sensors := mockSensors{}
 
-		handler := NewHandler(&plungeStore, &temperatureStore, &sensors)
+		handler := NewHandler(&plungeStore, &sensors)
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v2/plunges/start?duration=240", nil, handler.handlePlungesStart)
 		utils.TestExpectedStatus(t, rr, http.StatusCreated)
@@ -97,9 +92,10 @@ func TestPlungeStart(t *testing.T) {
 }
 
 type mockPlungeStore struct {
-	plungeID uuid.UUID
-	plunge   database.Plunge
-	err      error
+	plungeID    uuid.UUID
+	plunge      database.Plunge
+	temperature database.Temperature
+	err         error
 }
 
 func (m *mockPlungeStore) GetLatestPlunge(ctx context.Context) (database.Plunge, error) {
@@ -142,16 +138,11 @@ func (m *mockPlungeStore) UpdatePlungeAvgTemp(ctx context.Context, arg database.
 	return m.plunge, m.err
 }
 
-type mockTemperatureStore struct {
-	temperature database.Temperature
-	err         error
-}
-
-func (m *mockTemperatureStore) FindMostRecentTemperatures(ctx context.Context) (database.Temperature, error) {
+func (m *mockPlungeStore) FindMostRecentTemperatures(ctx context.Context) (database.Temperature, error) {
 	return m.temperature, m.err
 }
 
-func (m *mockTemperatureStore) SaveTemperature(ctx context.Context, arg database.SaveTemperatureParams) (database.Temperature, error) {
+func (m *mockPlungeStore) SaveTemperature(ctx context.Context, arg database.SaveTemperatureParams) (database.Temperature, error) {
 	return m.temperature, m.err
 }
 

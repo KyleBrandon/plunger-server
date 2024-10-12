@@ -95,11 +95,7 @@ func (config *JobConfig) StartJobWithTimeout(execute JobFunc, jobType int32, tim
 
 	config.ensureOnlyOneJob(context.Background(), jobType)
 
-	jobId := uuid.New()
 	params := database.CreateJobParams{
-		ID:        jobId,
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
 		JobType:   jobType,
 		Status:    JOBSTATUS_STARTED,
 		StartTime: time.Now().UTC(),
@@ -113,7 +109,7 @@ func (config *JobConfig) StartJobWithTimeout(execute JobFunc, jobType int32, tim
 		return nil, err
 	}
 
-	go execute(config, ctx, cancel, jobId)
+	go execute(config, ctx, cancel, job.ID)
 
 	return &job, nil
 }
@@ -126,11 +122,7 @@ func (config *JobConfig) StartJob(execute JobFunc, jobType int32) (*database.Job
 
 	config.ensureOnlyOneJob(context.Background(), jobType)
 
-	jobId := uuid.New()
 	params := database.CreateJobParams{
-		ID:        jobId,
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
 		JobType:   jobType,
 		Status:    JOBSTATUS_STARTED,
 		StartTime: time.Now().UTC(),
@@ -142,7 +134,7 @@ func (config *JobConfig) StartJob(execute JobFunc, jobType int32) (*database.Job
 		return nil, err
 	}
 
-	go execute(config, ctx, cancel, jobId)
+	go execute(config, ctx, cancel, job.ID)
 
 	return &job, nil
 }

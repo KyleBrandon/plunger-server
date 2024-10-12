@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/KyleBrandon/plunger-server/services/health"
 	"github.com/KyleBrandon/plunger-server/services/leaks"
+	"github.com/KyleBrandon/plunger-server/services/monitor"
 	"github.com/KyleBrandon/plunger-server/services/ozone"
 	plungesV1 "github.com/KyleBrandon/plunger-server/services/plunges/v1"
 	plungesV2 "github.com/KyleBrandon/plunger-server/services/plunges/v2"
@@ -46,16 +48,21 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	monitorHandler := monitor.NewHandler(config.DB, config.Sensors)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	monitorHandler.StartMonitorJobs(ctx, cancel)
+
 	healthHandler := health.NewHandler()
 	healthHandler.RegisterRoutes(mux)
 
-	temperatureHandler := temperatures.NewHandler(config.DB, config.Sensors)
+	temperatureHandler := temperatures.NewHandler(config.Sensors)
 	temperatureHandler.RegisterRoutes(mux)
 
 	userHandler := users.NewHandler(config.DB)
 	userHandler.RegisterRoutes(mux)
 
-	ozoneHandler := ozone.NewHandler(config.JobManager, config.DB)
+	ozoneHandler := ozone.NewHandler(config.DB, config.Sensors)
 	ozoneHandler.RegisterRoutes(mux)
 
 	leakHandler := leaks.NewHandler(config.JobManager, config.DB)
@@ -68,10 +75,10 @@ func main() {
 	plungesHandlerV1 := plungesV1.NewHandler(config.DB, config.Sensors)
 	plungesHandlerV1.RegisterRoutes(mux)
 
-	plungesHandlerV2 := plungesV2.NewHandler(config.DB, config.DB, config.Sensors)
+	plungesHandlerV2 := plungesV2.NewHandler(config.DB, config.Sensors)
 	plungesHandlerV2.RegisterRoutes(mux)
 
-	statusHandler := status.NewHandler(config.DB, config.DB, config.DB, config.Sensors, config.OriginPatterns)
+	statusHandler := status.NewHandler(config.DB, config.Sensors, config.OriginPatterns)
 	statusHandler.RegisterRoutes(mux)
 
 	config.runServer(mux)

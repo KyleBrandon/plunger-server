@@ -1,21 +1,21 @@
 package ozone
 
 import (
-	"context"
+	"database/sql"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
-	"github.com/KyleBrandon/plunger-server/internal/jobs"
+	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/KyleBrandon/plunger-server/utils"
-	"github.com/google/uuid"
 )
 
-func NewHandler(manager jobs.JobManager, store jobs.JobStore) *Handler {
+func NewHandler(store OzoneStore, sensor sensor.Sensors) *Handler {
 	return &Handler{
-		manager: manager,
-		store:   store,
+		store,
+		sensor,
 	}
 }
 
@@ -25,25 +25,14 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/ozone/stop", h.handlerOzoneStop)
 }
 
-func databaseJobToOzoneJob(dbJob *database.Job) OzoneJob {
-	var status string
-	var timeLeft float64
-	if dbJob.Status == jobs.JOBSTATUS_STARTED {
-		status = "Running"
-		timeLeft = dbJob.EndTime.Sub(time.Now().UTC()).Seconds()
-	} else {
-		status = "Stopped"
-		timeLeft = 0.0
-	}
-
-	oj := OzoneJob{
-		ID:              dbJob.ID,
-		Status:          status,
-		StartTime:       dbJob.StartTime,
-		EndTime:         dbJob.EndTime,
-		SecondsLeft:     timeLeft,
-		Result:          dbJob.Result.String,
-		CancelRequested: dbJob.CancelRequested,
+func databaseToOzoneResult(db database.Ozone) OzoneResult {
+	oj := OzoneResult{
+		ID:               db.ID,
+		StartTime:        db.StartTime.Time,
+		EndTime:          db.EndTime.Time,
+		Running:          db.Running,
+		ExpectedDuration: db.ExpectedDuration,
+		CancelRequested:  db.CancelRequested,
 	}
 
 	return oj
@@ -52,67 +41,84 @@ func databaseJobToOzoneJob(dbJob *database.Job) OzoneJob {
 func (h *Handler) handlerOzoneGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlerGetOzone")
 
-	job, err := h.store.GetLatestJobByType(r.Context(), jobs.JOBTYPE_OZONE_TIMER)
+	job, err := h.store.GetLatestOzone(r.Context())
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, "cound not find any ozone job", err)
 		return
 	}
 
-	response := databaseJobToOzoneJob(&job)
+	response := databaseToOzoneResult(job)
 	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
-func (h *Handler) handlerOzoneStart(writer http.ResponseWriter, _ *http.Request) {
+func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlerStartOzone")
 
-	job, err := h.manager.StartJobWithTimeout(runOzoneFunc, jobs.JOBTYPE_OZONE_TIMER, 2*time.Hour)
-	if err != nil {
-		utils.RespondWithError(writer, http.StatusInternalServerError, "could not start the ozone timer", err)
+	durationStr := r.URL.Query().Get("duration")
+	if durationStr == "" {
+		durationStr = DefaultOzoneDurationMinutes
+	}
+
+	duration, err := strconv.Atoi(durationStr)
+	if err != nil || duration < 0 {
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid 'duration' parameter", err)
 		return
 	}
 
-	response := databaseJobToOzoneJob(job)
-	utils.RespondWithJSON(writer, http.StatusCreated, response)
+	startTime := sql.NullTime{
+		Time:  time.Now().UTC(),
+		Valid: true,
+	}
+
+	args := database.StartOzoneParams{
+		StartTime:        startTime,
+		ExpectedDuration: int32(duration),
+	}
+
+	job, err := h.store.StartOzone(r.Context(), args)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, "could not start the ozone timer", err)
+		return
+
+	}
+
+	err = h.sensor.TurnOzoneOn()
+	if err != nil {
+		// TODO: save error status
+
+		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the ozone generator", err)
+		return
+	}
+
+	response := databaseToOzoneResult(job)
+	utils.RespondWithJSON(w, http.StatusCreated, response)
 }
 
-func (h *Handler) handlerOzoneStop(writer http.ResponseWriter, _ *http.Request) {
+func (h *Handler) handlerOzoneStop(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlerStopOzone")
 
-	err := h.manager.CancelJob(jobs.JOBTYPE_OZONE_TIMER)
+	ozone, err := h.store.GetLatestOzone(r.Context())
 	if err != nil {
-		utils.RespondWithError(writer, http.StatusNotModified, "could not stop the ozone job", err)
+		utils.RespondWithError(w, http.StatusNotModified, "could not find ozone job", err)
 		return
 	}
 
-	utils.RespondWithNoContent(writer, http.StatusNoContent)
-}
-
-func runOzoneFunc(config *jobs.JobConfig, ctx context.Context, cancel context.CancelFunc, jobId uuid.UUID) {
-	defer cancel()
-
-	config.SensorConfig.TurnOzoneOn()
-
-	for {
-		select {
-
-		case <-ctx.Done():
-			slog.Info("Ozone finished")
-			// task was canceled or timedout
-			config.SensorConfig.TurnOzoneOff()
-			config.StopJob(jobs.JOBTYPE_OZONE_TIMER, "Success")
-
-			return
-
-		case <-time.After(5 * time.Second):
-			// check to see if the task was canceled by the user
-			cancelRequested := config.IsJobCanceled(jobId)
-			if cancelRequested {
-				slog.Info("Ozone canceled by user")
-				config.SensorConfig.TurnOzoneOff()
-				cancel()
-				continue
-			}
-
-		}
+	// turn ozone off no matter what
+	err = h.sensor.TurnOzoneOff()
+	if err != nil {
+		slog.Error("failed to turn ozone generator off", "error", err)
 	}
+
+	if !ozone.Running {
+		utils.RespondWithError(w, http.StatusNotModified, "ozone not running", err)
+		return
+	}
+
+	_, err = h.store.StopOzone(r.Context(), ozone.ID)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusNotModified, "could not cancel ozone job", err)
+		return
+	}
+
+	utils.RespondWithNoContent(w, http.StatusNoContent)
 }

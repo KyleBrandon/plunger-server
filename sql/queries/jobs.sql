@@ -1,7 +1,7 @@
 -- name: CreateJob :one
 INSERT INTO jobs (
-    id, created_at, updated_at, job_type, status, start_time, end_time, result, cancel_requested
-) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9)
+    job_type, status, start_time, end_time, result, cancel_requested
+) VALUES ( $1, $2, $3, $4, $5, $6 )
 RETURNING *;
 
 -- name: GetJobById :one
@@ -32,3 +32,4 @@ SELECT * FROM jobs
 WHERE job_type = $1
 ORDER BY created_at DESC
 LIMIT 1;
+

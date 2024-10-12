@@ -11,17 +11,13 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
-	"github.com/KyleBrandon/plunger-server/services/plunges/v2"
-	"github.com/KyleBrandon/plunger-server/services/temperatures"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
 
-func NewHandler(store plunges.PlungeStore, temperatureStore temperatures.TemperatureStore, jobStore jobs.JobStore, sensors sensor.Sensors, originPatterns []string) *Handler {
+func NewHandler(store StatusStore, sensors sensor.Sensors, originPatterns []string) *Handler {
 	h := Handler{
 		store,
-		temperatureStore,
-		jobStore,
 		sensors,
 		PlungeState{},
 		originPatterns,
@@ -130,7 +126,7 @@ func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, water
 }
 
 func (h *Handler) buildOzoneStatus(ctx context.Context) (OzoneStatus, error) {
-	job, err := h.jobStore.GetLatestJobByType(ctx, jobs.JOBTYPE_OZONE_TIMER)
+	job, err := h.store.GetLatestJobByType(ctx, jobs.JOBTYPE_OZONE_TIMER)
 	if err != nil {
 		return OzoneStatus{}, err
 	}
@@ -163,7 +159,7 @@ func (h *Handler) getRecentTemperatures(ctx context.Context) (float64, string, f
 	waterTemp := 0.0
 	waterTempError := ""
 
-	temperature, err := h.temperatureStore.FindMostRecentTemperatures(ctx)
+	temperature, err := h.store.FindMostRecentTemperatures(ctx)
 	// if the room temperature was read successfully, convert it into a float
 	if err == nil && temperature.RoomTemp.Valid {
 		roomTemp, err = strconv.ParseFloat(temperature.RoomTemp.String, 64)

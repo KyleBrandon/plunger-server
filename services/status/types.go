@@ -1,13 +1,13 @@
 package status
 
 import (
+	"context"
 	"sync"
 	"time"
 
-	"github.com/KyleBrandon/plunger-server/internal/jobs"
+	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
-	"github.com/KyleBrandon/plunger-server/services/plunges/v2"
-	"github.com/KyleBrandon/plunger-server/services/temperatures"
+	"github.com/google/uuid"
 )
 
 type (
@@ -58,12 +58,21 @@ type (
 		TempReadCount  int64
 	}
 
+	StatusStore interface {
+		GetLatestJobByType(ctx context.Context, jobType int32) (database.Job, error)
+		FindMostRecentTemperatures(ctx context.Context) (database.Temperature, error)
+		GetLatestPlunge(ctx context.Context) (database.Plunge, error)
+		GetPlungeByID(ctx context.Context, id uuid.UUID) (database.Plunge, error)
+		GetPlunges(ctx context.Context) ([]database.Plunge, error)
+		StartPlunge(ctx context.Context, arg database.StartPlungeParams) (database.Plunge, error)
+		UpdatePlungeAvgTemp(ctx context.Context, arg database.UpdatePlungeAvgTempParams) (database.Plunge, error)
+		StopPlunge(ctx context.Context, arg database.StopPlungeParams) (database.Plunge, error)
+	}
+
 	Handler struct {
-		store            plunges.PlungeStore
-		temperatureStore temperatures.TemperatureStore
-		jobStore         jobs.JobStore
-		sensors          sensor.Sensors
-		state            PlungeState
-		originPatterns   []string
+		store          StatusStore
+		sensors        sensor.Sensors
+		state          PlungeState
+		originPatterns []string
 	}
 )

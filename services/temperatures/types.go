@@ -1,9 +1,6 @@
 package temperatures
 
 import (
-	"context"
-
-	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 )
 
@@ -17,13 +14,7 @@ type (
 		Err          string  `json:"err,omitempty"`
 	}
 
-	TemperatureStore interface {
-		FindMostRecentTemperatures(ctx context.Context) (database.Temperature, error)
-		SaveTemperature(ctx context.Context, arg database.SaveTemperatureParams) (database.Temperature, error)
-	}
-
 	Handler struct {
-		store   TemperatureStore
 		sensors sensor.Sensors
 	}
 )
