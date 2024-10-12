@@ -64,7 +64,7 @@ func (q *Queries) StartOzone(ctx context.Context, arg StartOzoneParams) (Ozone, 
 
 const stopOzone = `-- name: StopOzone :one
 UPDATE ozone
-SET end_time = CURRENT_TIMESTAMP, running = FALSE, cancel_requested = TRUE
+SET end_time = CURRENT_TIMESTAMP, running = FALSE
 WHERE id = $1
 RETURNING id, created_at, updated_at, start_time, end_time, running, expected_duration, status_message
 `

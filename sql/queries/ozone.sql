@@ -6,7 +6,7 @@ RETURNING *;
 
 -- name: StopOzone :one
 UPDATE ozone
-SET end_time = CURRENT_TIMESTAMP, running = FALSE, cancel_requested = TRUE
+SET end_time = CURRENT_TIMESTAMP, running = FALSE
 WHERE id = $1
 RETURNING *;
 
