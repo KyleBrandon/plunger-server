@@ -66,6 +66,12 @@ func (h *Handler) handlerOzoneGet(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlerStartOzone")
 
+	ozone, err := h.store.GetLatestOzone(r.Context())
+	if err == nil && ozone.Running {
+		utils.RespondWithError(w, http.StatusNotModified, "Ozone generator is already running", err)
+		return
+	}
+
 	durationStr := r.URL.Query().Get("duration")
 	if durationStr == "" {
 		durationStr = DefaultOzoneDurationMinutes
@@ -87,7 +93,7 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 		ExpectedDuration: int32(duration),
 	}
 
-	ozone, err := h.store.StartOzone(r.Context(), args)
+	ozone, err = h.store.StartOzone(r.Context(), args)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "could not start the ozone timer", err)
 		return
@@ -119,7 +125,7 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handlerOzoneStop(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("handlerStopOzone")
+	slog.Info("handlerStopOzone")
 
 	ozone, err := h.store.GetLatestOzone(r.Context())
 	if err != nil {
@@ -130,7 +136,7 @@ func (h *Handler) handlerOzoneStop(w http.ResponseWriter, r *http.Request) {
 	// turn ozone off no matter what
 	err = h.sensor.TurnOzoneOff()
 	if err != nil {
-		slog.Error("failed to turn ozone generator off", "error", err)
+		slog.Info("failed to turn ozone generator off", "error", err)
 	}
 
 	if !ozone.Running {
@@ -143,6 +149,7 @@ func (h *Handler) handlerOzoneStop(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithError(w, http.StatusNotModified, "could not cancel ozone job", err)
 		return
 	}
+	slog.Info("ozone stopped")
 
 	utils.RespondWithNoContent(w, http.StatusNoContent)
 }
