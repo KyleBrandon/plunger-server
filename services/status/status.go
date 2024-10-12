@@ -130,28 +130,24 @@ func (h *Handler) buildOzoneStatus(ctx context.Context) (OzoneStatus, error) {
 		return OzoneStatus{}, err
 	}
 
-	status := "Stopped"
 	var remaining time.Duration
 	var endTime time.Time
 	if ozone.Running {
-		status = "Running"
-
 		elapsedTime := time.Since(ozone.StartTime.Time)
 		duration := time.Duration(ozone.ExpectedDuration) * time.Minute
 		remaining = duration - elapsedTime
 		endTime = ozone.StartTime.Time.Add(duration)
 	} else {
-		status = "Stopped"
 		remaining = 0.0
 		endTime = ozone.EndTime.Time
 	}
 
 	os := OzoneStatus{
-		Status:          status,
-		StartTime:       ozone.StartTime.Time,
-		EndTime:         endTime,
-		SecondsLeft:     remaining.Seconds(),
-		CancelRequested: ozone.CancelRequested,
+		Running:     ozone.Running,
+		Status:      ozone.StatusMessage.String,
+		StartTime:   ozone.StartTime.Time,
+		EndTime:     endTime,
+		SecondsLeft: remaining.Seconds(),
 	}
 
 	return os, nil

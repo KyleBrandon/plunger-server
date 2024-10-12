@@ -18,7 +18,7 @@ type (
 		EndTime          time.Time `json:"end_time"`
 		Running          bool      `json:"running"`
 		ExpectedDuration int32     `json:"expected_duration"`
-		CancelRequested  bool      `json:"cancel_requested"`
+		StatusMessage    string    `json:"status_message"`
 	}
 
 	Handler struct {
@@ -30,5 +30,6 @@ type (
 		GetLatestOzone(ctx context.Context) (database.Ozone, error)
 		StartOzone(ctx context.Context, arg database.StartOzoneParams) (database.Ozone, error)
 		StopOzone(ctx context.Context, id uuid.UUID) (database.Ozone, error)
+		UpdateOzoneStatus(ctx context.Context, arg database.UpdateOzoneStatusParams) (database.Ozone, error)
 	}
 )

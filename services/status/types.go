@@ -11,12 +11,11 @@ import (
 
 type (
 	OzoneStatus struct {
-		StartTime       time.Time `json:"start_time"`
-		EndTime         time.Time `json:"end_time"`
-		Status          string    `json:"status"`
-		Result          string    `json:"result"`
-		SecondsLeft     float64   `json:"seconds_left"`
-		CancelRequested bool      `json:"cancel_requested"`
+		Running     bool      `json:"running"`
+		StartTime   time.Time `json:"start_time"`
+		EndTime     time.Time `json:"end_time"`
+		Status      string    `json:"status"`
+		SecondsLeft float64   `json:"seconds_left"`
 	}
 
 	PlungeStatus struct {

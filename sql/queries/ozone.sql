@@ -15,3 +15,8 @@ SELECT * FROM ozone
 ORDER BY created_at DESC
 LIMIT 1;
 
+-- name: UpdateOzoneStatus :one
+UPDATE ozone
+SET status_message = $1
+WHERE id = $2
+RETURNING *;

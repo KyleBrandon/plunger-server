@@ -13,7 +13,7 @@ import (
 )
 
 const getLatestOzone = `-- name: GetLatestOzone :one
-SELECT id, created_at, updated_at, start_time, end_time, running, expected_duration, cancel_requested FROM ozone
+SELECT id, created_at, updated_at, start_time, end_time, running, expected_duration, status_message FROM ozone
 ORDER BY created_at DESC
 LIMIT 1
 `
@@ -29,7 +29,7 @@ func (q *Queries) GetLatestOzone(ctx context.Context) (Ozone, error) {
 		&i.EndTime,
 		&i.Running,
 		&i.ExpectedDuration,
-		&i.CancelRequested,
+		&i.StatusMessage,
 	)
 	return i, err
 }
@@ -38,7 +38,7 @@ const startOzone = `-- name: StartOzone :one
 INSERT INTO ozone (
     start_time, running, expected_duration
 ) VALUES ( $1, true, $2)
-RETURNING id, created_at, updated_at, start_time, end_time, running, expected_duration, cancel_requested
+RETURNING id, created_at, updated_at, start_time, end_time, running, expected_duration, status_message
 `
 
 type StartOzoneParams struct {
@@ -57,7 +57,7 @@ func (q *Queries) StartOzone(ctx context.Context, arg StartOzoneParams) (Ozone, 
 		&i.EndTime,
 		&i.Running,
 		&i.ExpectedDuration,
-		&i.CancelRequested,
+		&i.StatusMessage,
 	)
 	return i, err
 }
@@ -66,7 +66,7 @@ const stopOzone = `-- name: StopOzone :one
 UPDATE ozone
 SET end_time = CURRENT_TIMESTAMP, running = FALSE, cancel_requested = TRUE
 WHERE id = $1
-RETURNING id, created_at, updated_at, start_time, end_time, running, expected_duration, cancel_requested
+RETURNING id, created_at, updated_at, start_time, end_time, running, expected_duration, status_message
 `
 
 func (q *Queries) StopOzone(ctx context.Context, id uuid.UUID) (Ozone, error) {
@@ -80,7 +80,35 @@ func (q *Queries) StopOzone(ctx context.Context, id uuid.UUID) (Ozone, error) {
 		&i.EndTime,
 		&i.Running,
 		&i.ExpectedDuration,
-		&i.CancelRequested,
+		&i.StatusMessage,
+	)
+	return i, err
+}
+
+const updateOzoneStatus = `-- name: UpdateOzoneStatus :one
+UPDATE ozone
+SET status_message = $1
+WHERE id = $2
+RETURNING id, created_at, updated_at, start_time, end_time, running, expected_duration, status_message
+`
+
+type UpdateOzoneStatusParams struct {
+	StatusMessage sql.NullString
+	ID            uuid.UUID
+}
+
+func (q *Queries) UpdateOzoneStatus(ctx context.Context, arg UpdateOzoneStatusParams) (Ozone, error) {
+	row := q.db.QueryRowContext(ctx, updateOzoneStatus, arg.StatusMessage, arg.ID)
+	var i Ozone
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.StartTime,
+		&i.EndTime,
+		&i.Running,
+		&i.ExpectedDuration,
+		&i.StatusMessage,
 	)
 	return i, err
 }

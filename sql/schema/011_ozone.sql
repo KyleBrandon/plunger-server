@@ -7,7 +7,7 @@ CREATE TABLE ozone (
     end_time TIMESTAMP,
     running BOOLEAN NOT NULL DEFAULT false,
     expected_duration INTEGER NOT NULL DEFAULT 0,
-    cancel_requested BOOLEAN NOT NULL DEFAULT false
+    status_message TEXT
 );
 
 -- +goose Down

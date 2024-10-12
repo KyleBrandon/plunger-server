@@ -40,7 +40,7 @@ type Ozone struct {
 	EndTime          sql.NullTime
 	Running          bool
 	ExpectedDuration int32
-	CancelRequested  bool
+	StatusMessage    sql.NullString
 }
 
 type Plunge struct {

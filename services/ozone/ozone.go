@@ -2,6 +2,7 @@ package ozone
 
 import (
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -26,16 +27,27 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 func databaseToOzoneResult(db database.Ozone) OzoneResult {
-	oj := OzoneResult{
+	o := OzoneResult{
 		ID:               db.ID,
 		StartTime:        db.StartTime.Time,
 		EndTime:          db.EndTime.Time,
 		Running:          db.Running,
 		ExpectedDuration: db.ExpectedDuration,
-		CancelRequested:  db.CancelRequested,
 	}
 
-	return oj
+	if db.StartTime.Valid {
+		o.StartTime = db.StartTime.Time
+	}
+
+	if db.EndTime.Valid {
+		o.EndTime = db.EndTime.Time
+	}
+
+	if db.StatusMessage.Valid {
+		o.StatusMessage = db.StatusMessage.String
+	}
+
+	return o
 }
 
 func (h *Handler) handlerOzoneGet(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +87,7 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 		ExpectedDuration: int32(duration),
 	}
 
-	job, err := h.store.StartOzone(r.Context(), args)
+	ozone, err := h.store.StartOzone(r.Context(), args)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "could not start the ozone timer", err)
 		return
@@ -84,13 +96,25 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 
 	err = h.sensor.TurnOzoneOn()
 	if err != nil {
-		// TODO: save error status
+		message := fmt.Sprintf("Failed to turn on ozone generator: %v", err.Error())
+		updateArgs := database.UpdateOzoneStatusParams{
+			ID:            ozone.ID,
+			StatusMessage: sql.NullString{String: message, Valid: true},
+		}
+		var dbErr error
+		ozone, dbErr = h.store.UpdateOzoneStatus(r.Context(), updateArgs)
+		if dbErr != nil {
+			slog.Error("failed to save ozone status", "error", dbErr, "status", message)
+			// return the db error to the user
+			err = dbErr
+		}
 
 		utils.RespondWithError(w, http.StatusInternalServerError, "failed to start the ozone generator", err)
 		return
 	}
 
-	response := databaseToOzoneResult(job)
+	response := databaseToOzoneResult(ozone)
+
 	utils.RespondWithJSON(w, http.StatusCreated, response)
 }
 
