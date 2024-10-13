@@ -125,7 +125,7 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handlerOzoneStop(w http.ResponseWriter, r *http.Request) {
-	slog.Info("handlerStopOzone")
+	slog.Debug("handlerStopOzone")
 
 	ozone, err := h.store.GetLatestOzone(r.Context())
 	if err != nil {
@@ -136,20 +136,32 @@ func (h *Handler) handlerOzoneStop(w http.ResponseWriter, r *http.Request) {
 	// turn ozone off no matter what
 	err = h.sensor.TurnOzoneOff()
 	if err != nil {
-		slog.Info("failed to turn ozone generator off", "error", err)
+		slog.Error("failed to turn ozone generator off", "error", err)
+
+		// Update the ozone status to indicate it was not turned off
+		arg := database.UpdateOzoneStatusParams{
+			ID:            ozone.ID,
+			StatusMessage: sql.NullString{Valid: true, String: "Failed to turn ozone generator off"},
+		}
+		_, err = h.store.UpdateOzoneStatus(r.Context(), arg)
+		if err != nil {
+			// we wee unable to update the ozone status, log an error at a minimum
+			slog.Error("failed to update ozone status to indicate ozone was not turned off", "error", err)
+		}
 	}
 
+	// if the ozone is not running then return
 	if !ozone.Running {
 		utils.RespondWithError(w, http.StatusNotModified, "ozone not running", err)
 		return
 	}
 
+	// update the database and stop the ozone
 	_, err = h.store.StopOzone(r.Context(), ozone.ID)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotModified, "could not cancel ozone job", err)
 		return
 	}
-	slog.Info("ozone stopped")
 
 	utils.RespondWithNoContent(w, http.StatusNoContent)
 }

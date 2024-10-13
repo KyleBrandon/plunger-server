@@ -49,9 +49,9 @@ func main() {
 	mux := http.NewServeMux()
 
 	monitorHandler := monitor.NewHandler(config.DB, config.Sensors)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancelMonitors := context.WithCancel(context.Background())
 
-	monitorHandler.StartMonitorJobs(ctx, cancel)
+	monitorHandler.StartMonitorJobs(ctx)
 
 	healthHandler := health.NewHandler()
 	healthHandler.RegisterRoutes(mux)
@@ -81,18 +81,20 @@ func main() {
 	statusHandler := status.NewHandler(config.DB, config.Sensors, config.OriginPatterns)
 	statusHandler.RegisterRoutes(mux)
 
-	config.runServer(mux)
+	config.runServer(mux, cancelMonitors)
 }
 
-func (config *serverConfig) runServer(mux *http.ServeMux) {
+func (config *serverConfig) runServer(mux *http.ServeMux, cancelMonitors context.CancelFunc) {
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),
 		Handler: mux,
 	}
 
-	fmt.Printf("Starting server on :%s\n", config.ServerPort)
+	slog.Info("Starting server", "port", config.ServerPort)
 	if err := server.ListenAndServe(); err != nil {
-		fmt.Printf("Server failed: %s\n", err)
+		slog.Error("Server failed", "error", err)
+		// TODO: we should wait for the monitors to stop
+		cancelMonitors()
 	}
 }
 
