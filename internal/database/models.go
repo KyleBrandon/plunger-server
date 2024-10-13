@@ -32,6 +32,17 @@ type Job struct {
 	CancelRequested bool
 }
 
+type Ozone struct {
+	ID               uuid.UUID
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	StartTime        sql.NullTime
+	EndTime          sql.NullTime
+	Running          bool
+	ExpectedDuration int32
+	StatusMessage    sql.NullString
+}
+
 type Plunge struct {
 	ID               uuid.UUID
 	CreatedAt        time.Time

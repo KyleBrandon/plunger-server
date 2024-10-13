@@ -9,19 +9,14 @@ import (
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
-	"github.com/KyleBrandon/plunger-server/internal/jobs"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
-	"github.com/KyleBrandon/plunger-server/services/plunges/v2"
-	"github.com/KyleBrandon/plunger-server/services/temperatures"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
 
-func NewHandler(store plunges.PlungeStore, temperatureStore temperatures.TemperatureStore, jobStore jobs.JobStore, sensors sensor.Sensors, originPatterns []string) *Handler {
+func NewHandler(store StatusStore, sensors sensor.Sensors, originPatterns []string) *Handler {
 	h := Handler{
 		store,
-		temperatureStore,
-		jobStore,
 		sensors,
 		PlungeState{},
 		originPatterns,
@@ -130,28 +125,29 @@ func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, water
 }
 
 func (h *Handler) buildOzoneStatus(ctx context.Context) (OzoneStatus, error) {
-	job, err := h.jobStore.GetLatestJobByType(ctx, jobs.JOBTYPE_OZONE_TIMER)
+	ozone, err := h.store.GetLatestOzone(ctx)
 	if err != nil {
 		return OzoneStatus{}, err
 	}
 
-	var status string
-	var timeLeft float64
-	if job.Status == jobs.JOBSTATUS_STARTED {
-		status = "Running"
-		timeLeft = job.EndTime.Sub(time.Now().UTC()).Seconds()
+	var remaining time.Duration
+	var endTime time.Time
+	if ozone.Running {
+		elapsedTime := time.Since(ozone.StartTime.Time)
+		duration := time.Duration(ozone.ExpectedDuration) * time.Minute
+		remaining = duration - elapsedTime
+		endTime = ozone.StartTime.Time.Add(duration)
 	} else {
-		status = "Stopped"
-		timeLeft = 0.0
+		remaining = 0.0
+		endTime = ozone.EndTime.Time
 	}
 
 	os := OzoneStatus{
-		Status:          status,
-		StartTime:       job.StartTime,
-		EndTime:         job.EndTime,
-		SecondsLeft:     timeLeft,
-		Result:          job.Result.String,
-		CancelRequested: job.CancelRequested,
+		Running:     ozone.Running,
+		Status:      ozone.StatusMessage.String,
+		StartTime:   ozone.StartTime.Time,
+		EndTime:     endTime,
+		SecondsLeft: remaining.Seconds(),
 	}
 
 	return os, nil
@@ -163,7 +159,7 @@ func (h *Handler) getRecentTemperatures(ctx context.Context) (float64, string, f
 	waterTemp := 0.0
 	waterTempError := ""
 
-	temperature, err := h.temperatureStore.FindMostRecentTemperatures(ctx)
+	temperature, err := h.store.FindMostRecentTemperatures(ctx)
 	// if the room temperature was read successfully, convert it into a float
 	if err == nil && temperature.RoomTemp.Valid {
 		roomTemp, err = strconv.ParseFloat(temperature.RoomTemp.String, 64)

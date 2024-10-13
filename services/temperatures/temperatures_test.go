@@ -14,7 +14,6 @@ import (
 
 func TestReadTemperatures(t *testing.T) {
 	t.Run("should fail to read if sensors are non-responsive", func(t *testing.T) {
-		store := mockStore{}
 		s := mockSensors{}
 		s.temperatures = []sensor.TemperatureReading{
 			{
@@ -22,7 +21,7 @@ func TestReadTemperatures(t *testing.T) {
 			},
 		}
 
-		h := NewHandler(&store, &s)
+		h := NewHandler(&s)
 
 		rr := utils.TestRequest(t, http.MethodGet, "/v1/temperatures", nil, h.handlerTemperaturesGet)
 
@@ -36,9 +35,8 @@ func TestReadTemperatures(t *testing.T) {
 	})
 
 	t.Run("should read temperature sensors", func(t *testing.T) {
-		store := mockStore{}
 		sensor := mockSensors{}
-		h := NewHandler(&store, &sensor)
+		h := NewHandler(&sensor)
 
 		rr := utils.TestRequest(t, http.MethodGet, "/v1/temperatures", nil, h.handlerTemperaturesGet)
 

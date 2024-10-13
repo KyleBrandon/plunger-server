@@ -15,15 +15,12 @@ import (
 
 const createJob = `-- name: CreateJob :one
 INSERT INTO jobs (
-    id, created_at, updated_at, job_type, status, start_time, end_time, result, cancel_requested
-) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9)
+    job_type, status, start_time, end_time, result, cancel_requested
+) VALUES ( $1, $2, $3, $4, $5, $6 )
 RETURNING id, created_at, updated_at, job_type, status, start_time, end_time, result, cancel_requested
 `
 
 type CreateJobParams struct {
-	ID              uuid.UUID
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
 	JobType         int32
 	Status          int32
 	StartTime       time.Time
@@ -34,9 +31,6 @@ type CreateJobParams struct {
 
 func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (Job, error) {
 	row := q.db.QueryRowContext(ctx, createJob,
-		arg.ID,
-		arg.CreatedAt,
-		arg.UpdatedAt,
 		arg.JobType,
 		arg.Status,
 		arg.StartTime,

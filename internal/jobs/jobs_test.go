@@ -18,9 +18,6 @@ type jobStore struct {
 
 func (store *jobStore) CreateJob(ctx context.Context, arg database.CreateJobParams) (database.Job, error) {
 	store.Job = database.Job{
-		ID:              arg.ID,
-		CreatedAt:       arg.CreatedAt,
-		UpdatedAt:       arg.UpdatedAt,
 		JobType:         arg.JobType,
 		Status:          arg.Status,
 		StartTime:       arg.StartTime,
