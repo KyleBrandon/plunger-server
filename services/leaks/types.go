@@ -2,34 +2,27 @@ package leaks
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
-	"github.com/KyleBrandon/plunger-server/internal/jobs"
 	"github.com/google/uuid"
 )
 
-const (
-	EVENTTYPE_LEAK = 1
+type (
+	LeakResponse struct {
+		ID         uuid.UUID    `json:"id"`
+		CreatedAt  time.Time    `json:"created_at"`
+		UpdatedAt  time.Time    `json:"updated_at"`
+		DetectedAt time.Time    `json:"detected_at"`
+		ClearedAt  sql.NullTime `json:"cleared_at"`
+	}
+
+	LeakStore interface {
+		GetLatestLeak(ctx context.Context) (database.Leak, error)
+	}
+
+	Handler struct {
+		store LeakStore
+	}
 )
-
-type DbLeakEvent struct {
-	EventTime     time.Time `json:"event_time"`
-	PreviousState bool      `json:"previous_state"`
-	CurrentState  bool      `json:"current_state"`
-}
-
-type LeakEvent struct {
-	UpdatedAt    time.Time `json:"updated_at"`
-	LeakDetected bool      `json:"leak_detected"`
-}
-type LeakStore interface {
-	GetLatestEventByType(ctx context.Context, eventType int32) (database.Event, error)
-	GetEventsByType(ctx context.Context, arg database.GetEventsByTypeParams) ([]database.Event, error)
-}
-
-type Handler struct {
-	store            LeakStore
-	manager          jobs.JobManager
-	leakMonitorJobId uuid.UUID
-}
