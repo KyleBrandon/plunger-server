@@ -25,6 +25,9 @@ func (h *Handler) StartMonitorJobs(ctx context.Context) {
 }
 
 func (h *Handler) monitorTemperatures(ctx context.Context) {
+	slog.Info(">>monitorTemperatures")
+	defer slog.Info("<<monitorTemperatures")
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -68,8 +71,8 @@ func (h *Handler) monitorTemperatures(ctx context.Context) {
 }
 
 func (h *Handler) monitorOzone(ctx context.Context) {
-	slog.Debug(">>monitorOzone")
-	defer slog.Debug("<<monitorOzone")
+	slog.Info(">>monitorOzone")
+	defer slog.Info("<<monitorOzone")
 	// start with the ozone off
 	h.sensors.TurnOzoneOff()
 
@@ -130,7 +133,7 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 	}
 }
 
-func (h *Handler) processLeakReading(ctx context.Context, leakDetected bool) (database.Leak, error) {
+func (h *Handler) processLeakReading(ctx context.Context, leakDetected bool) error {
 	var leak database.Leak
 	var err error
 
@@ -146,6 +149,7 @@ func (h *Handler) processLeakReading(ctx context.Context, leakDetected bool) (da
 		leak, err = h.store.GetLatestLeak(ctx)
 		if err != nil {
 			slog.Warn("failed to read the latest leak from the database, create a new entry", "error", err)
+			return err
 		}
 
 		// the entry's cleared_at should not be set
@@ -160,10 +164,12 @@ func (h *Handler) processLeakReading(ctx context.Context, leakDetected bool) (da
 		}
 	}
 
-	return leak, nil
+	return nil
 }
 
 func (h *Handler) monitorLeaks(ctx context.Context) {
+	slog.Info(">>monitorLeaks")
+	defer slog.Info("<<monitorLeaks")
 	// take an initial reading of the leak sensor so we can detect transitions from true/false
 	prevLeakReading, err := h.sensors.IsLeakPresent()
 	if err != nil {
