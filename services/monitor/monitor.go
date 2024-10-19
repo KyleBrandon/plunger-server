@@ -198,6 +198,8 @@ func (h *Handler) monitorLeaks(ctx context.Context) {
 			// have we had a change since we last read the sensor?
 			if prevLeakReading != currentLeakReading {
 				h.processLeakReading(ctx, currentLeakReading)
+
+				prevLeakReading = currentLeakReading
 			}
 
 			// if a leak was detected, then turn the pump off
