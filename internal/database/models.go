@@ -32,6 +32,14 @@ type Job struct {
 	CancelRequested bool
 }
 
+type Leak struct {
+	ID         uuid.UUID
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	DetectedAt time.Time
+	ClearedAt  sql.NullTime
+}
+
 type Ozone struct {
 	ID               uuid.UUID
 	CreatedAt        time.Time

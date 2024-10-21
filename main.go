@@ -65,9 +65,8 @@ func main() {
 	ozoneHandler := ozone.NewHandler(config.DB, config.Sensors)
 	ozoneHandler.RegisterRoutes(mux)
 
-	leakHandler := leaks.NewHandler(config.JobManager, config.DB)
+	leakHandler := leaks.NewHandler(config.DB)
 	leakHandler.RegisterRoutes(mux)
-	leakHandler.StartMonitoringLeaks()
 
 	pumpHandler := pump.NewHandler(config.Sensors)
 	pumpHandler.RegisterRoutes(mux)
