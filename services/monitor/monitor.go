@@ -9,6 +9,7 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
+	"github.com/google/uuid"
 )
 
 func NewHandler(store MonitorStore, sensors sensor.Sensors) *Handler {
@@ -79,12 +80,12 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			// if the ozone monitor is canceled then we should ensure the generator is stopped
+			slog.Info("monitorOzone done")
+			// if the ozone monitor routne is canceled then we should ensure the generator is stopped
 			err := h.sensors.TurnOzoneOff()
 			if err != nil {
 				// this is about the best we can do currently since this happens when the server is shutting down
 				slog.Error("failed to turn ozone off when exiting the ozone monitor", "error", err)
-				// TODO: notify the user that we could not turn off the ozone generator when it was being shut down
 			}
 
 			return
@@ -96,6 +97,9 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 				slog.Error("failed to query the latest ozone job", "error", err)
 				continue
 			}
+
+			// status message
+			message := ""
 
 			// while there is a recent ozone job that is running, check if it should be stopped
 			if ozone.Running {
@@ -109,27 +113,49 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 					// turn off the ozone generator
 					err := h.sensors.TurnOzoneOff()
 					if err != nil {
-						slog.Error("Failed to turn off the ozone generator after the duration expired", "error", err)
-						// TODO: notify the user that we could not turn off the ozone generator when it was done
+						message = "Failed to turn off the ozone generator after the duration expired"
+						slog.Error(message, "error", err)
+
 					}
 
 					// Update the databsae to indicate the ozone has stopped
 					_, err = h.store.StopOzone(ctx, ozone.ID)
 					if err != nil {
-						slog.Error("Failed to update the databse to indicate the ozone job was finished", "error", err)
-						// TODO: notify the user that we could not update the ozone job to indicate it was stopped
+						message = "Failed to update the databse to indicate the ozone job was finished"
+						slog.Error(message, "error", err)
 					}
 				}
 			} else {
 				// safe guard to ensure that the ozone is stopped when it should be stopped
 				err = h.sensors.TurnOzoneOff()
 				if err != nil {
-					slog.Warn("Failed to stop the ozone generator when the most recent job is stopped")
-					// TODO: Notify the user that we can't turn off the ozone generator
+					message = "Failed to stop the ozone generator when the most recent job is stopped"
+					slog.Warn(message)
+				}
+			}
+
+			// TODO: This should go on to a status/notification queue
+			if len(message) > 0 {
+				args := database.UpdateOzoneStatusParams{ID: ozone.ID, StatusMessage: sql.NullString{String: message, Valid: true}}
+				_, err = h.store.UpdateOzoneStatus(ctx, args)
+				if err != nil {
+					slog.Error("Failed to update the ozone status message", "error", err)
 				}
 			}
 
 		}
+	}
+}
+
+func (h *Handler) updateOzoneStatus(ctx context.Context, id uuid.UUID, statusMessage string) {
+	args := database.UpdateOzoneStatusParams{
+		StatusMessage: sql.NullString{String: statusMessage, Valid: true},
+		ID:            id,
+	}
+
+	_, err := h.store.UpdateOzoneStatus(ctx, args)
+	if err != nil {
+		slog.Error("failed to save the ozone status in the database", "error", err, "status", statusMessage)
 	}
 }
 

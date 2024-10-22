@@ -18,6 +18,7 @@ type MonitorStore interface {
 	SaveTemperature(ctx context.Context, arg database.SaveTemperatureParams) (database.Temperature, error)
 	GetLatestOzone(ctx context.Context) (database.Ozone, error)
 	StopOzone(ctx context.Context, id uuid.UUID) (database.Ozone, error)
+	UpdateOzoneStatus(ctx context.Context, args database.UpdateOzoneStatusParams) (database.Ozone, error)
 	GetLatestLeak(ctx context.Context) (database.Leak, error)
 	CreateLeakDetected(ctx context.Context, detectedAt time.Time) (database.Leak, error)
 	UpdateLeakCleared(ctx context.Context, id uuid.UUID) (database.Leak, error)
