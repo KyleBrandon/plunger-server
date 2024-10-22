@@ -211,10 +211,6 @@ func (h *Handler) monitorLeaks(ctx context.Context) {
 		}
 	}
 
-	// if there is currently no leak, see if we need to report it being cleared
-	// process the initial lead reading, this will create a leak record if one is detected
-	h.processLeakReading(ctx, prevLeakReading)
-
 	for {
 		select {
 
