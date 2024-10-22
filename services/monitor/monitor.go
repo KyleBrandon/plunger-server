@@ -202,6 +202,16 @@ func (h *Handler) monitorLeaks(ctx context.Context) {
 		slog.Warn("failed to read sensor to determine if a leak is present", "error", err)
 	}
 
+	// if there is a leak present at start create a leak entry
+	if prevLeakReading {
+		_, err := h.store.CreateLeakDetected(ctx, time.Now().UTC())
+		if err != nil {
+			slog.Error("failed to store leak detection in database", "error", err)
+			// TODO: we should have alternative means of reporting this
+		}
+	}
+
+	// if there is currently no leak, see if we need to report it being cleared
 	// process the initial lead reading, this will create a leak record if one is detected
 	h.processLeakReading(ctx, prevLeakReading)
 
