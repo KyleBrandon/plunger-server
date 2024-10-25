@@ -144,7 +144,9 @@ func (config *SensorConfig) ReadRoomAndWaterTemperature() (TemperatureReading, T
 }
 
 func (config *SensorConfig) IsLeakPresent() (bool, error) {
-	slog.Debug("IsLeakPresent")
+	slog.Debug(">>IsLeakPresent")
+	defer slog.Debug("<<IsLeakPresent")
+
 	if err := rpio.Open(); err != nil {
 		return false, err
 	}
@@ -214,7 +216,9 @@ func (device *DeviceConfig) IsOn() (bool, error) {
 }
 
 func (device *DeviceConfig) TurnOn() error {
-	slog.Debug("Device.TurnOn", "name", device.Name)
+	slog.Debug(">>Device.TurnOn", "name", device.Name)
+	defer slog.Debug("<<Device.TurnOn", "name", device.Name)
+
 	if err := rpio.Open(); err != nil {
 		return err
 	}
@@ -240,7 +244,9 @@ func (device *DeviceConfig) TurnOn() error {
 }
 
 func (device *DeviceConfig) TurnOff() error {
-	slog.Debug("Device.TurnOff", "name", device.Name)
+	slog.Debug(">>Device.TurnOff", "name", device.Name)
+	defer slog.Debug("<<Device.TurnOff", "name", device.Name)
+
 	if err := rpio.Open(); err != nil {
 		return err
 	}

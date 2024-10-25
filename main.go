@@ -31,53 +31,54 @@ type serverConfig struct {
 	ServerPort     string
 	DatabaseURL    string
 	Sensors        sensor.Sensors
-	DB             *database.Queries
+	Queries        *database.Queries
+	dbConnection   *sql.DB
 	JobManager     jobs.JobManager
 	OriginPatterns []string
+	logger         *slog.Logger
 }
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	slog.SetDefault(logger)
-
 	config, err := initializeServerConfig()
 	if err != nil {
 		slog.Error("failed to load config file")
 		os.Exit(1)
 	}
 
+	defer config.dbConnection.Close()
+
 	mux := http.NewServeMux()
 
-	monitorHandler := monitor.NewHandler(config.DB, config.Sensors)
+	monitorHandler := monitor.NewHandler(config.Queries, config.Sensors)
 	ctx, cancelMonitors := context.WithCancel(context.Background())
 
 	monitorHandler.StartMonitorJobs(ctx)
 
-	healthHandler := health.NewHandler()
+	healthHandler := health.NewHandler(config.logger)
 	healthHandler.RegisterRoutes(mux)
 
 	temperatureHandler := temperatures.NewHandler(config.Sensors)
 	temperatureHandler.RegisterRoutes(mux)
 
-	userHandler := users.NewHandler(config.DB)
+	userHandler := users.NewHandler(config.Queries)
 	userHandler.RegisterRoutes(mux)
 
-	ozoneHandler := ozone.NewHandler(config.DB, config.Sensors)
+	ozoneHandler := ozone.NewHandler(config.Queries, config.Sensors)
 	ozoneHandler.RegisterRoutes(mux)
 
-	leakHandler := leaks.NewHandler(config.DB)
+	leakHandler := leaks.NewHandler(config.Queries)
 	leakHandler.RegisterRoutes(mux)
 
 	pumpHandler := pump.NewHandler(config.Sensors)
 	pumpHandler.RegisterRoutes(mux)
 
-	plungesHandlerV1 := plungesV1.NewHandler(config.DB, config.Sensors)
+	plungesHandlerV1 := plungesV1.NewHandler(config.Queries, config.Sensors)
 	plungesHandlerV1.RegisterRoutes(mux)
 
-	plungesHandlerV2 := plungesV2.NewHandler(config.DB, config.Sensors)
+	plungesHandlerV2 := plungesV2.NewHandler(config.Queries, config.Sensors)
 	plungesHandlerV2.RegisterRoutes(mux)
 
-	statusHandler := status.NewHandler(config.DB, config.Sensors, config.OriginPatterns)
+	statusHandler := status.NewHandler(config.Queries, config.Sensors, config.OriginPatterns)
 	statusHandler.RegisterRoutes(mux)
 
 	config.runServer(mux, cancelMonitors)
@@ -98,6 +99,10 @@ func (config *serverConfig) runServer(mux *http.ServeMux, cancelMonitors context
 }
 
 func initializeServerConfig() (serverConfig, error) {
+	sc := serverConfig{}
+
+	sc.logger = health.ConfigureLogger()
+
 	configSettings, err := LoadConfigFile(CONFIG_FILENAME)
 	if err != nil {
 		slog.Error("failed to load config file", "error", err)
@@ -119,15 +124,13 @@ func initializeServerConfig() (serverConfig, error) {
 	databaseURL := os.Getenv("DATABASE_URL")
 	serverPort := os.Getenv("PORT")
 
-	sc := serverConfig{
-		ServerPort:     serverPort,
-		DatabaseURL:    databaseURL,
-		Sensors:        sensorConfig,
-		OriginPatterns: configSettings.OriginPatterns,
-	}
+	sc.ServerPort = serverPort
+	sc.DatabaseURL = databaseURL
+	sc.Sensors = sensorConfig
+	sc.OriginPatterns = configSettings.OriginPatterns
 
 	sc.openDatabase()
-	sc.JobManager = jobs.NewJobConfig(sc.DB, sensorConfig)
+	sc.JobManager = jobs.NewJobConfig(sc.Queries, sensorConfig)
 
 	return sc, nil
 }
@@ -138,5 +141,6 @@ func (config *serverConfig) openDatabase() {
 		slog.Error("failed to open database connection", "error", err)
 	}
 
-	config.DB = database.New(db)
+	config.dbConnection = db
+	config.Queries = database.New(db)
 }
