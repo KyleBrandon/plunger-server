@@ -19,7 +19,7 @@ func NewHandler(store FilterStore) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /v2/filter/change", h.handleFilterChange)
+	mux.HandleFunc("POST /v2/filters/change", h.handleFilterChange)
 }
 
 func (h *Handler) handleFilterChange(w http.ResponseWriter, r *http.Request) {
