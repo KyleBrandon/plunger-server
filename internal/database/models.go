@@ -20,6 +20,14 @@ type Event struct {
 	EventData json.RawMessage
 }
 
+type Filter struct {
+	ID        uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	ChangedAt time.Time
+	RemindAt  time.Time
+}
+
 type Job struct {
 	ID              uuid.UUID
 	CreatedAt       time.Time

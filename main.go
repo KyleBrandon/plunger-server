@@ -11,6 +11,7 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
+	"github.com/KyleBrandon/plunger-server/services/filters"
 	"github.com/KyleBrandon/plunger-server/services/health"
 	"github.com/KyleBrandon/plunger-server/services/leaks"
 	"github.com/KyleBrandon/plunger-server/services/monitor"
@@ -80,6 +81,9 @@ func main() {
 
 	statusHandler := status.NewHandler(config.Queries, config.Sensors, config.OriginPatterns)
 	statusHandler.RegisterRoutes(mux)
+
+	filterHandler := filters.NewHandler(config.Queries)
+	filterHandler.RegisterRoutes(mux)
 
 	config.runServer(mux, cancelMonitors)
 }
