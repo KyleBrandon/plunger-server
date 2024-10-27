@@ -29,8 +29,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 func databaseToOzoneResult(db database.Ozone) OzoneResult {
 	o := OzoneResult{
 		ID:               db.ID,
-		StartTime:        db.StartTime.Time,
-		EndTime:          db.EndTime.Time,
 		Running:          db.Running,
 		ExpectedDuration: db.ExpectedDuration,
 	}

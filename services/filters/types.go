@@ -9,6 +9,14 @@ import (
 )
 
 type (
+	FilterResponse struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		ChangedAt time.Time `json:"changed_at"`
+		RemindAt  time.Time `json:"remind_at"`
+	}
+
 	ChangeFilterRequest struct {
 		ChangedAt time.Time `json:"changed_at"`
 		RemindAt  time.Time `json:"remind_at"`
@@ -23,6 +31,7 @@ type (
 	FilterStore interface {
 		GetFilters(ctx context.Context) ([]database.Filter, error)
 		ChangeFilter(ctx context.Context, arg database.ChangeFilterParams) (database.Filter, error)
+		GetLatestFilterChange(ctx context.Context) (database.Filter, error)
 	}
 
 	Handler struct {

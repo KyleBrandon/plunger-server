@@ -53,7 +53,7 @@ func main() {
 	monitorHandler := monitor.NewHandler(config.Queries, config.Sensors)
 	ctx, cancelMonitors := context.WithCancel(context.Background())
 
-	monitorHandler.StartMonitorJobs(ctx)
+	monitorHandler.StartMonitorRoutines(ctx)
 
 	healthHandler := health.NewHandler(config.logger)
 	healthHandler.RegisterRoutes(mux)

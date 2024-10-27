@@ -2,6 +2,7 @@ package filters
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -19,7 +20,37 @@ func NewHandler(store FilterStore) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v2/filters", h.handleFilterGet)
 	mux.HandleFunc("POST /v2/filters/change", h.handleFilterChange)
+}
+
+func (h *Handler) handleFilterGet(w http.ResponseWriter, r *http.Request) {
+	slog.Debug(">>handlerFilterGet")
+	defer slog.Debug("<<handlerFilterGet")
+
+	dbFilters := make([]database.Filter, 0)
+
+	// TODO: Break this up and have a separate handler for one leak vs multiple
+	filter := r.URL.Query().Get("filter")
+	if filter == "current" {
+
+		dbFilter, err := h.store.GetLatestFilterChange(r.Context())
+		if err != nil {
+			utils.RespondWithError(w, http.StatusNotFound, "could not find a current filter change entry", err)
+			return
+		}
+
+		dbFilters = append(dbFilters, dbFilter)
+
+	} else {
+		// TODO: Support reading of all (paginated) filters
+		utils.RespondWithError(w, http.StatusNotImplemented, "read all filter change entries not supported", errors.New("read all filter change entries not supported"))
+		return
+	}
+
+	response := databaseFiltersToFilters(dbFilters)
+
+	utils.RespondWithJSON(w, http.StatusOK, response)
 }
 
 func (h *Handler) handleFilterChange(w http.ResponseWriter, r *http.Request) {
@@ -58,4 +89,22 @@ func (h *Handler) handleFilterChange(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, http.StatusCreated, response)
+}
+
+func databaseFiltersToFilters(dbFilters []database.Filter) []FilterResponse {
+	responses := make([]FilterResponse, 0, len(dbFilters))
+
+	for _, db := range dbFilters {
+		f := FilterResponse{
+			ID:        db.ID,
+			CreatedAt: db.CreatedAt,
+			UpdatedAt: db.UpdatedAt,
+			ChangedAt: db.ChangedAt,
+			RemindAt:  db.RemindAt,
+		}
+
+		responses = append(responses, f)
+	}
+
+	return responses
 }

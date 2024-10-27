@@ -19,7 +19,7 @@ func NewHandler(store MonitorStore, sensors sensor.Sensors) *Handler {
 	}
 }
 
-func (h *Handler) StartMonitorJobs(ctx context.Context) {
+func (h *Handler) StartMonitorRoutines(ctx context.Context) {
 	go h.monitorTemperatures(ctx)
 	go h.monitorOzone(ctx)
 	go h.monitorLeaks(ctx)
@@ -216,7 +216,6 @@ func (h *Handler) monitorLeaks(ctx context.Context) {
 
 		case <-ctx.Done():
 			// task was canceled or timedout
-			// config.StopJob(jobs.JOBTYPE_LEAK_MONITOR, "Success")
 
 			return
 

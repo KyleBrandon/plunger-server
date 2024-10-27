@@ -22,7 +22,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 func (h *Handler) handlerLeakGet(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("handlerGetLeak")
+	slog.Debug(">>handlerLeakGet")
+	defer slog.Debug("<<handlerLeakGet")
 
 	dbLeaks := make([]database.Leak, 0)
 
