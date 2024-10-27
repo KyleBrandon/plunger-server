@@ -125,7 +125,7 @@ func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, water
 }
 
 func (h *Handler) buildOzoneStatus(ctx context.Context) (OzoneStatus, error) {
-	ozone, err := h.store.GetLatestOzone(ctx)
+	ozone, err := h.store.GetLatestOzoneEntry(ctx)
 	if err != nil {
 		return OzoneStatus{}, err
 	}

@@ -60,7 +60,7 @@ type (
 		FindMostRecentTemperatures(ctx context.Context) (database.Temperature, error)
 		GetLatestPlunge(ctx context.Context) (database.Plunge, error)
 		UpdatePlungeAvgTemp(ctx context.Context, arg database.UpdatePlungeAvgTempParams) (database.Plunge, error)
-		GetLatestOzone(ctx context.Context) (database.Ozone, error)
+		GetLatestOzoneEntry(ctx context.Context) (database.Ozone, error)
 	}
 
 	Handler struct {

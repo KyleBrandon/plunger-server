@@ -92,7 +92,7 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 
 		case <-time.After(5 * time.Second):
 
-			ozone, err := h.store.GetLatestOzone(ctx)
+			ozone, err := h.store.GetLatestOzoneEntry(ctx)
 			if err != nil {
 				slog.Error("failed to query the latest ozone job", "error", err)
 				continue
@@ -119,7 +119,7 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 					}
 
 					// Update the databsae to indicate the ozone has stopped
-					_, err = h.store.StopOzone(ctx, ozone.ID)
+					_, err = h.store.StopOzoneGenerator(ctx, ozone.ID)
 					if err != nil {
 						message = "Failed to update the databse to indicate the ozone job was finished"
 						slog.Error(message, "error", err)
@@ -136,8 +136,8 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 
 			// TODO: This should go on to a status/notification queue
 			if len(message) > 0 {
-				args := database.UpdateOzoneStatusParams{ID: ozone.ID, StatusMessage: sql.NullString{String: message, Valid: true}}
-				_, err = h.store.UpdateOzoneStatus(ctx, args)
+				args := database.UpdateOzoneEntryStatusParams{ID: ozone.ID, StatusMessage: sql.NullString{String: message, Valid: true}}
+				_, err = h.store.UpdateOzoneEntryStatus(ctx, args)
 				if err != nil {
 					slog.Error("Failed to update the ozone status message", "error", err)
 				}
@@ -148,12 +148,12 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 }
 
 func (h *Handler) updateOzoneStatus(ctx context.Context, id uuid.UUID, statusMessage string) {
-	args := database.UpdateOzoneStatusParams{
+	args := database.UpdateOzoneEntryStatusParams{
 		StatusMessage: sql.NullString{String: statusMessage, Valid: true},
 		ID:            id,
 	}
 
-	_, err := h.store.UpdateOzoneStatus(ctx, args)
+	_, err := h.store.UpdateOzoneEntryStatus(ctx, args)
 	if err != nil {
 		slog.Error("failed to save the ozone status in the database", "error", err, "status", statusMessage)
 	}
@@ -172,7 +172,7 @@ func (h *Handler) processLeakReading(ctx context.Context, leakDetected bool) err
 		}
 	} else {
 		// if there is currently no leak, see if we need to report it being cleared
-		leak, err = h.store.GetLatestLeak(ctx)
+		leak, err = h.store.GetLatestLeakDetected(ctx)
 		if err != nil {
 			slog.Warn("failed to read the latest leak from the database, create a new entry", "error", err)
 			return err
@@ -180,7 +180,7 @@ func (h *Handler) processLeakReading(ctx context.Context, leakDetected bool) err
 
 		// the entry's cleared_at should not be set
 		if !leak.ClearedAt.Valid {
-			leak, err = h.store.UpdateLeakCleared(ctx, leak.ID)
+			leak, err = h.store.ClearDetectedLeak(ctx, leak.ID)
 			if err != nil {
 				slog.Error("failed to clear detected leak in database", "error", err)
 			}

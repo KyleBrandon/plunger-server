@@ -69,6 +69,6 @@ type mockLeakStore struct {
 	leak database.Leak
 }
 
-func (m *mockLeakStore) GetLatestLeak(ctx context.Context) (database.Leak, error) {
+func (m *mockLeakStore) GetLatestLeakDetected(ctx context.Context) (database.Leak, error) {
 	return m.leak, m.err
 }

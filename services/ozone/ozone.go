@@ -53,7 +53,7 @@ func databaseToOzoneResult(db database.Ozone) OzoneResult {
 func (h *Handler) handlerOzoneGet(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlerGetOzone")
 
-	job, err := h.store.GetLatestOzone(r.Context())
+	job, err := h.store.GetLatestOzoneEntry(r.Context())
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, "cound not find any ozone job", err)
 		return
@@ -66,7 +66,7 @@ func (h *Handler) handlerOzoneGet(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlerStartOzone")
 
-	ozone, err := h.store.GetLatestOzone(r.Context())
+	ozone, err := h.store.GetLatestOzoneEntry(r.Context())
 	if err == nil && ozone.Running {
 		utils.RespondWithError(w, http.StatusNotModified, "Ozone generator is already running", err)
 		return
@@ -88,12 +88,12 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 		Valid: true,
 	}
 
-	args := database.StartOzoneParams{
+	args := database.StartOzoneGeneratorParams{
 		StartTime:        startTime,
 		ExpectedDuration: int32(duration),
 	}
 
-	ozone, err = h.store.StartOzone(r.Context(), args)
+	ozone, err = h.store.StartOzoneGenerator(r.Context(), args)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "could not start the ozone timer", err)
 		return
@@ -103,12 +103,12 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 	err = h.sensor.TurnOzoneOn()
 	if err != nil {
 		message := fmt.Sprintf("Failed to turn on ozone generator: %v", err.Error())
-		updateArgs := database.UpdateOzoneStatusParams{
+		updateArgs := database.UpdateOzoneEntryStatusParams{
 			ID:            ozone.ID,
 			StatusMessage: sql.NullString{String: message, Valid: true},
 		}
 		var dbErr error
-		ozone, dbErr = h.store.UpdateOzoneStatus(r.Context(), updateArgs)
+		ozone, dbErr = h.store.UpdateOzoneEntryStatus(r.Context(), updateArgs)
 		if dbErr != nil {
 			slog.Error("failed to save ozone status", "error", dbErr, "status", message)
 			// return the db error to the user
@@ -127,7 +127,7 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handlerOzoneStop(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlerStopOzone")
 
-	ozone, err := h.store.GetLatestOzone(r.Context())
+	ozone, err := h.store.GetLatestOzoneEntry(r.Context())
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotModified, "could not find ozone job", err)
 		return
@@ -139,11 +139,11 @@ func (h *Handler) handlerOzoneStop(w http.ResponseWriter, r *http.Request) {
 		slog.Error("failed to turn ozone generator off", "error", err)
 
 		// Update the ozone status to indicate it was not turned off
-		arg := database.UpdateOzoneStatusParams{
+		arg := database.UpdateOzoneEntryStatusParams{
 			ID:            ozone.ID,
 			StatusMessage: sql.NullString{Valid: true, String: "Failed to turn ozone generator off"},
 		}
-		_, err = h.store.UpdateOzoneStatus(r.Context(), arg)
+		_, err = h.store.UpdateOzoneEntryStatus(r.Context(), arg)
 		if err != nil {
 			// we wee unable to update the ozone status, log an error at a minimum
 			slog.Error("failed to update ozone status to indicate ozone was not turned off", "error", err)
@@ -157,7 +157,7 @@ func (h *Handler) handlerOzoneStop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// update the database and stop the ozone
-	_, err = h.store.StopOzone(r.Context(), ozone.ID)
+	_, err = h.store.StopOzoneGenerator(r.Context(), ozone.ID)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotModified, "could not cancel ozone job", err)
 		return

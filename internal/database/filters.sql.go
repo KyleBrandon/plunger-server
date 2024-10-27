@@ -87,3 +87,22 @@ func (q *Queries) GetFilters(ctx context.Context) ([]Filter, error) {
 	}
 	return items, nil
 }
+
+const getLatestFilterChange = `-- name: GetLatestFilterChange :one
+SELECT id, created_at, updated_at, changed_at, remind_at FROM filters
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestFilterChange(ctx context.Context) (Filter, error) {
+	row := q.db.QueryRowContext(ctx, getLatestFilterChange)
+	var i Filter
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ChangedAt,
+		&i.RemindAt,
+	)
+	return i, err
+}
