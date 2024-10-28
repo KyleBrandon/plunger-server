@@ -46,7 +46,7 @@ type (
 		RoomTemp       float64      `json:"room_temp"`
 		RoomTempError  string       `json:"room_temp_error"`
 		LeakDetected   bool         `json:"leak_detected"`
-		LeakError      string       `json:"leak_error"`
+		LeakError      string       `json:"leak_status_error"`
 		PumpOn         bool         `json:"pump_on"`
 		PumpError      string       `json:"pump_error"`
 		PlungeStatus   PlungeStatus `json:"plunge"`
