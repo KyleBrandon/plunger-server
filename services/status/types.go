@@ -34,6 +34,12 @@ type (
 		AvgRoomTemp      float64 `json:"average_room_temp"`
 	}
 
+	FilterStatus struct {
+		ChangedAt time.Time `json:"changed_at"`
+		RemindAt  time.Time `json:"remind_at"`
+		ChangeDue bool      `json:"change_due"`
+	}
+
 	SystemStatus struct {
 		WaterTemp      float64      `json:"water_temp"`
 		WaterTempError string       `json:"water_temp_error"`
@@ -47,6 +53,8 @@ type (
 		PlungeError    string       `json:"plunge_status_error"`
 		OzoneStatus    OzoneStatus  `json:"ozone"`
 		OzoneError     string       `json:"ozone_status_error"`
+		FilterStatus   FilterStatus `json:"filter"`
+		FilterError    string       `json:"filter_status_error"`
 	}
 
 	PlungeState struct {
@@ -61,6 +69,7 @@ type (
 		GetLatestPlunge(ctx context.Context) (database.Plunge, error)
 		UpdatePlungeAvgTemp(ctx context.Context, arg database.UpdatePlungeAvgTempParams) (database.Plunge, error)
 		GetLatestOzoneEntry(ctx context.Context) (database.Ozone, error)
+		GetLatestFilterChange(ctx context.Context) (database.Filter, error)
 	}
 
 	Handler struct {
