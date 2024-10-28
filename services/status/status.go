@@ -29,17 +29,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v2/status/ws", h.handleStatusWS)
 }
 
-// Update the temperatures
-func (h *Handler) updateAverageTemperatures(roomTemp float64, waterTemp float64) (float64, float64) {
-	h.state.WaterTempTotal += waterTemp
-	h.state.RoomTempTotal += roomTemp
-	h.state.TempReadCount++
-	avgWaterTemp := h.state.WaterTempTotal / float64(h.state.TempReadCount)
-	avgRoomTemp := h.state.RoomTempTotal / float64(h.state.TempReadCount)
-
-	return avgRoomTemp, avgWaterTemp
-}
-
 func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
 	slog.Info(">>handleWS: new incoming connection")
 	opts := &websocket.AcceptOptions{
@@ -58,6 +47,90 @@ func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
 	h.monitorPlunge(ctx, c)
 
 	slog.Info("<<handleWS")
+}
+
+func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
+	slog.Info(">>monitorPlunge")
+	defer slog.Info("<<monitorPlunge")
+
+	ticker := time.NewTicker(1 * time.Second)
+	heartbeatTicker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	defer heartbeatTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("monitorPlunge: client disconnected")
+			c.Close(websocket.StatusNormalClosure, "Connection closed")
+			return
+
+		case <-ticker.C:
+
+			roomTemp, roomTempError, waterTemp, waterTempError := h.getRecentTemperatures(ctx)
+			leakError := ""
+			leakDetected, err := h.sensors.IsLeakPresent()
+			if err != nil {
+				leakError = err.Error()
+			}
+
+			pumpError := ""
+			pumpIsOn, err := h.sensors.IsPumpOn()
+			if err != nil {
+				pumpError = err.Error()
+			}
+
+			plungeError := ""
+			ps, err := h.buildPlungeStatus(ctx, roomTemp, waterTemp)
+			if err != nil {
+				plungeError = err.Error()
+			}
+
+			ozoneError := ""
+			os, err := h.buildOzoneStatus(ctx)
+			if err != nil {
+				ozoneError = err.Error()
+			}
+
+			filterError := ""
+			fs, err := h.buildFilterStatus(ctx)
+			if err != nil {
+				filterError = err.Error()
+			}
+
+			status := SystemStatus{
+				PlungeStatus:   ps,
+				PlungeError:    plungeError,
+				OzoneStatus:    os,
+				OzoneError:     ozoneError,
+				WaterTemp:      waterTemp,
+				WaterTempError: waterTempError,
+				RoomTemp:       roomTemp,
+				RoomTempError:  roomTempError,
+				LeakDetected:   leakDetected,
+				LeakError:      leakError,
+				PumpOn:         pumpIsOn,
+				PumpError:      pumpError,
+				FilterStatus:   fs,
+				FilterError:    filterError,
+			}
+
+			err = wsjson.Write(ctx, c, status)
+			if err != nil {
+				slog.Error("monitorPlunge: error writing to client", "error", err)
+				c.Close(websocket.StatusInternalError, "error writing status")
+				return
+			}
+
+		case <-heartbeatTicker.C:
+			err := c.Ping(ctx)
+			if err != nil {
+				slog.Error("monitorPlunge: error sending ping", "error", err)
+				c.Close(websocket.StatusInternalError, "error sending ping")
+				return
+			}
+		}
+	}
 }
 
 func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, waterTemp float64) (PlungeStatus, error) {
@@ -125,7 +198,7 @@ func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, water
 }
 
 func (h *Handler) buildOzoneStatus(ctx context.Context) (OzoneStatus, error) {
-	ozone, err := h.store.GetLatestOzone(ctx)
+	ozone, err := h.store.GetLatestOzoneEntry(ctx)
 	if err != nil {
 		return OzoneStatus{}, err
 	}
@@ -151,6 +224,24 @@ func (h *Handler) buildOzoneStatus(ctx context.Context) (OzoneStatus, error) {
 	}
 
 	return os, nil
+}
+
+func (h *Handler) buildFilterStatus(ctx context.Context) (FilterStatus, error) {
+	filter, err := h.store.GetLatestFilterChange(ctx)
+	if err != nil {
+		return FilterStatus{}, err
+	}
+
+	if time.Now().UTC().After(filter.RemindAt) {
+	}
+
+	fs := FilterStatus{
+		ChangedAt: filter.ChangedAt,
+		RemindAt:  filter.RemindAt,
+		ChangeDue: time.Now().UTC().After(filter.RemindAt),
+	}
+
+	return fs, nil
 }
 
 func (h *Handler) getRecentTemperatures(ctx context.Context) (float64, string, float64, string) {
@@ -185,78 +276,13 @@ func (h *Handler) getRecentTemperatures(ctx context.Context) (float64, string, f
 	return roomTemp, roomTempError, waterTemp, waterTempError
 }
 
-func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
-	slog.Info(">>monitorPlunge")
-	defer slog.Info("<<monitorPlunge")
+// Update the temperatures
+func (h *Handler) updateAverageTemperatures(roomTemp float64, waterTemp float64) (float64, float64) {
+	h.state.WaterTempTotal += waterTemp
+	h.state.RoomTempTotal += roomTemp
+	h.state.TempReadCount++
+	avgWaterTemp := h.state.WaterTempTotal / float64(h.state.TempReadCount)
+	avgRoomTemp := h.state.RoomTempTotal / float64(h.state.TempReadCount)
 
-	ticker := time.NewTicker(1 * time.Second)
-	heartbeatTicker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-	defer heartbeatTicker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			slog.Info("monitorPlunge: client disconnected")
-			c.Close(websocket.StatusNormalClosure, "Connection closed")
-			return
-
-		case <-ticker.C:
-
-			roomTemp, roomTempError, waterTemp, waterTempError := h.getRecentTemperatures(ctx)
-			leakError := ""
-			leakDetected, err := h.sensors.IsLeakPresent()
-			if err != nil {
-				leakError = err.Error()
-			}
-
-			pumpError := ""
-			pumpIsOn, err := h.sensors.IsPumpOn()
-			if err != nil {
-				pumpError = err.Error()
-			}
-
-			plungeError := ""
-			ps, err := h.buildPlungeStatus(ctx, roomTemp, waterTemp)
-			if err != nil {
-				plungeError = err.Error()
-			}
-
-			ozoneError := ""
-			os, err := h.buildOzoneStatus(ctx)
-			if err != nil {
-				ozoneError = err.Error()
-			}
-
-			status := SystemStatus{
-				PlungeStatus:   ps,
-				PlungeError:    plungeError,
-				OzoneStatus:    os,
-				OzoneError:     ozoneError,
-				WaterTemp:      waterTemp,
-				WaterTempError: waterTempError,
-				RoomTemp:       roomTemp,
-				RoomTempError:  roomTempError,
-				LeakDetected:   leakDetected,
-				LeakError:      leakError,
-				PumpOn:         pumpIsOn,
-				PumpError:      pumpError,
-			}
-
-			err = wsjson.Write(ctx, c, status)
-			if err != nil {
-				slog.Error("monitorPlunge: error writing to client", "error", err)
-				c.Close(websocket.StatusInternalError, "error writing status")
-				return
-			}
-
-		case <-heartbeatTicker.C:
-			err := c.Ping(ctx)
-			if err != nil {
-				slog.Error("monitorPlunge: error sending ping", "error", err)
-				c.Close(websocket.StatusInternalError, "error sending ping")
-				return
-			}
-		}
-	}
+	return avgRoomTemp, avgWaterTemp
 }

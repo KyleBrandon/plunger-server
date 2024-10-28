@@ -12,14 +12,14 @@ import (
 	"github.com/google/uuid"
 )
 
-const getLatestOzone = `-- name: GetLatestOzone :one
+const getLatestOzoneEntry = `-- name: GetLatestOzoneEntry :one
 SELECT id, created_at, updated_at, start_time, end_time, running, expected_duration, status_message FROM ozone
 ORDER BY created_at DESC
 LIMIT 1
 `
 
-func (q *Queries) GetLatestOzone(ctx context.Context) (Ozone, error) {
-	row := q.db.QueryRowContext(ctx, getLatestOzone)
+func (q *Queries) GetLatestOzoneEntry(ctx context.Context) (Ozone, error) {
+	row := q.db.QueryRowContext(ctx, getLatestOzoneEntry)
 	var i Ozone
 	err := row.Scan(
 		&i.ID,
@@ -34,20 +34,20 @@ func (q *Queries) GetLatestOzone(ctx context.Context) (Ozone, error) {
 	return i, err
 }
 
-const startOzone = `-- name: StartOzone :one
+const startOzoneGenerator = `-- name: StartOzoneGenerator :one
 INSERT INTO ozone (
     start_time, running, expected_duration
 ) VALUES ( $1, true, $2)
 RETURNING id, created_at, updated_at, start_time, end_time, running, expected_duration, status_message
 `
 
-type StartOzoneParams struct {
+type StartOzoneGeneratorParams struct {
 	StartTime        sql.NullTime
 	ExpectedDuration int32
 }
 
-func (q *Queries) StartOzone(ctx context.Context, arg StartOzoneParams) (Ozone, error) {
-	row := q.db.QueryRowContext(ctx, startOzone, arg.StartTime, arg.ExpectedDuration)
+func (q *Queries) StartOzoneGenerator(ctx context.Context, arg StartOzoneGeneratorParams) (Ozone, error) {
+	row := q.db.QueryRowContext(ctx, startOzoneGenerator, arg.StartTime, arg.ExpectedDuration)
 	var i Ozone
 	err := row.Scan(
 		&i.ID,
@@ -62,15 +62,15 @@ func (q *Queries) StartOzone(ctx context.Context, arg StartOzoneParams) (Ozone, 
 	return i, err
 }
 
-const stopOzone = `-- name: StopOzone :one
+const stopOzoneGenerator = `-- name: StopOzoneGenerator :one
 UPDATE ozone
 SET end_time = CURRENT_TIMESTAMP, running = FALSE
 WHERE id = $1
 RETURNING id, created_at, updated_at, start_time, end_time, running, expected_duration, status_message
 `
 
-func (q *Queries) StopOzone(ctx context.Context, id uuid.UUID) (Ozone, error) {
-	row := q.db.QueryRowContext(ctx, stopOzone, id)
+func (q *Queries) StopOzoneGenerator(ctx context.Context, id uuid.UUID) (Ozone, error) {
+	row := q.db.QueryRowContext(ctx, stopOzoneGenerator, id)
 	var i Ozone
 	err := row.Scan(
 		&i.ID,
@@ -85,20 +85,20 @@ func (q *Queries) StopOzone(ctx context.Context, id uuid.UUID) (Ozone, error) {
 	return i, err
 }
 
-const updateOzoneStatus = `-- name: UpdateOzoneStatus :one
+const updateOzoneEntryStatus = `-- name: UpdateOzoneEntryStatus :one
 UPDATE ozone
 SET status_message = $1
 WHERE id = $2
 RETURNING id, created_at, updated_at, start_time, end_time, running, expected_duration, status_message
 `
 
-type UpdateOzoneStatusParams struct {
+type UpdateOzoneEntryStatusParams struct {
 	StatusMessage sql.NullString
 	ID            uuid.UUID
 }
 
-func (q *Queries) UpdateOzoneStatus(ctx context.Context, arg UpdateOzoneStatusParams) (Ozone, error) {
-	row := q.db.QueryRowContext(ctx, updateOzoneStatus, arg.StatusMessage, arg.ID)
+func (q *Queries) UpdateOzoneEntryStatus(ctx context.Context, arg UpdateOzoneEntryStatusParams) (Ozone, error) {
+	row := q.db.QueryRowContext(ctx, updateOzoneEntryStatus, arg.StatusMessage, arg.ID)
 	var i Ozone
 	err := row.Scan(
 		&i.ID,

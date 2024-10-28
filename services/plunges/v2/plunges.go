@@ -45,6 +45,7 @@ func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("handlePlungesStart")
 
+	// TODO: change this to be in the body
 	durationStr := r.URL.Query().Get("duration")
 	if durationStr == "" {
 		durationStr = DefaultPlungeDurationSeconds

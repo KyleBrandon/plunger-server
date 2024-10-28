@@ -27,9 +27,9 @@ type (
 	}
 
 	OzoneStore interface {
-		GetLatestOzone(ctx context.Context) (database.Ozone, error)
-		StartOzone(ctx context.Context, arg database.StartOzoneParams) (database.Ozone, error)
-		StopOzone(ctx context.Context, id uuid.UUID) (database.Ozone, error)
-		UpdateOzoneStatus(ctx context.Context, arg database.UpdateOzoneStatusParams) (database.Ozone, error)
+		GetLatestOzoneEntry(ctx context.Context) (database.Ozone, error)
+		StartOzoneGenerator(ctx context.Context, arg database.StartOzoneGeneratorParams) (database.Ozone, error)
+		StopOzoneGenerator(ctx context.Context, id uuid.UUID) (database.Ozone, error)
+		UpdateOzoneEntryStatus(ctx context.Context, arg database.UpdateOzoneEntryStatusParams) (database.Ozone, error)
 	}
 )

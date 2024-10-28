@@ -1,4 +1,4 @@
--- name: GetLatestLeak :one
+-- name: GetLatestLeakDetected :one
 SELECT * FROM leaks
 ORDER BY created_at DESC
 LIMIT 1;
@@ -8,7 +8,7 @@ INSERT INTO leaks (detected_at)
 VALUES ($1)
 RETURNING *;
 
--- name: UpdateLeakCleared :one
+-- name: ClearDetectedLeak :one
 UPDATE leaks
 SET cleared_at = CURRENT_TIMESTAMP
 WHERE id = $1

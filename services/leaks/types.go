@@ -19,7 +19,7 @@ type (
 	}
 
 	LeakStore interface {
-		GetLatestLeak(ctx context.Context) (database.Leak, error)
+		GetLatestLeakDetected(ctx context.Context) (database.Leak, error)
 	}
 
 	Handler struct {

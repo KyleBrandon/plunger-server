@@ -22,7 +22,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 func (h *Handler) handlerLeakGet(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("handlerGetLeak")
+	slog.Debug(">>handlerLeakGet")
+	defer slog.Debug("<<handlerLeakGet")
 
 	dbLeaks := make([]database.Leak, 0)
 
@@ -30,7 +31,7 @@ func (h *Handler) handlerLeakGet(w http.ResponseWriter, r *http.Request) {
 	filter := r.URL.Query().Get("filter")
 	if filter == "current" {
 
-		dbLeak, err := h.store.GetLatestLeak(r.Context())
+		dbLeak, err := h.store.GetLatestLeakDetected(r.Context())
 		if err != nil {
 			utils.RespondWithError(w, http.StatusNotFound, "could not find the current leak event", err)
 			return
