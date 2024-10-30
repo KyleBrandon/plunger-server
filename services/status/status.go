@@ -15,14 +15,18 @@ import (
 )
 
 func NewHandler(store StatusStore, sensors sensor.Sensors, originPatterns []string) *Handler {
-	h := Handler{
+	hub := NewHub()
+	h := &Handler{
 		store,
 		sensors,
 		PlungeState{},
 		originPatterns,
+		hub,
 	}
 
-	return &h
+	go h.run() // Start the hub's main loop
+
+	return h
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
@@ -43,94 +47,142 @@ func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
 	defer c.Close(websocket.StatusInternalError, "Unexpected connection close")
 
 	ctx := c.CloseRead(r.Context())
+	client := &Client{
+		conn: c,
+		ctx:  ctx,
+	}
 
-	h.monitorPlunge(ctx, c)
+	// register the client with the hub
+	h.hub.register <- client
+
+	// wait until the client disconnects or an error occurrs
+	<-ctx.Done()
+
+	// unregister the client from the hub
+	h.hub.unregister <- client
 
 	slog.Info("<<handleWS")
 }
 
-func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
-	slog.Info(">>monitorPlunge")
-	defer slog.Info("<<monitorPlunge")
+// NewHub creates and returns a new Hub instance
+func NewHub() *Hub {
+	hub := &Hub{
+		clients:    make(map[*Client]struct{}),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
+	}
+	return hub
+}
 
+// run manages registration, unregistration, and broadcasting
+func (h *Handler) run() {
 	ticker := time.NewTicker(1 * time.Second)
 	heartbeatTicker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	defer heartbeatTicker.Stop()
 
+	hub := h.hub
+
 	for {
 		select {
-		case <-ctx.Done():
-			slog.Info("monitorPlunge: client disconnected")
-			c.Close(websocket.StatusNormalClosure, "Connection closed")
-			return
+		case client := <-hub.register:
+			hub.mutex.Lock()
+			hub.clients[client] = struct{}{}
+			hub.mutex.Unlock()
+			slog.Info("New client registered")
+
+		case client := <-hub.unregister:
+			hub.mutex.Lock()
+			delete(hub.clients, client)
+			hub.mutex.Unlock()
+			slog.Info("Client unregistered")
 
 		case <-ticker.C:
-
-			roomTemp, roomTempError, waterTemp, waterTempError := h.getRecentTemperatures(ctx)
-			leakError := ""
-			leakDetected, err := h.sensors.IsLeakPresent()
-			if err != nil {
-				leakError = err.Error()
-			}
-
-			pumpError := ""
-			pumpIsOn, err := h.sensors.IsPumpOn()
-			if err != nil {
-				pumpError = err.Error()
-			}
-
-			plungeError := ""
-			ps, err := h.buildPlungeStatus(ctx, roomTemp, waterTemp)
-			if err != nil {
-				plungeError = err.Error()
-			}
-
-			ozoneError := ""
-			os, err := h.buildOzoneStatus(ctx)
-			if err != nil {
-				ozoneError = err.Error()
-			}
-
-			filterError := ""
-			fs, err := h.buildFilterStatus(ctx)
-			if err != nil {
-				filterError = err.Error()
-			}
-
-			status := SystemStatus{
-				PlungeStatus:   ps,
-				PlungeError:    plungeError,
-				OzoneStatus:    os,
-				OzoneError:     ozoneError,
-				WaterTemp:      waterTemp,
-				WaterTempError: waterTempError,
-				RoomTemp:       roomTemp,
-				RoomTempError:  roomTempError,
-				LeakDetected:   leakDetected,
-				LeakError:      leakError,
-				PumpOn:         pumpIsOn,
-				PumpError:      pumpError,
-				FilterStatus:   fs,
-				FilterError:    filterError,
-			}
-
-			err = wsjson.Write(ctx, c, status)
-			if err != nil {
-				slog.Error("monitorPlunge: error writing to client", "error", err)
-				c.Close(websocket.StatusInternalError, "error writing status")
-				return
-			}
+			h.broadcastStatus()
 
 		case <-heartbeatTicker.C:
-			err := c.Ping(ctx)
-			if err != nil {
-				slog.Error("monitorPlunge: error sending ping", "error", err)
-				c.Close(websocket.StatusInternalError, "error sending ping")
-				return
+			for client := range hub.clients {
+				err := client.conn.Ping(client.ctx)
+				if err != nil {
+					slog.Error("monitorPlunge: error sending ping", "error", err)
+					hub.unregister <- client
+				}
+
 			}
 		}
 	}
+}
+
+// broadcastStatus sends the current system status to all connected clients
+func (h *Handler) broadcastStatus() {
+	h.hub.mutex.Lock()
+	defer h.hub.mutex.Unlock()
+
+	status := h.readStatus(context.Background())
+	for client := range h.hub.clients {
+		// Send the status to each client
+		err := wsjson.Write(context.Background(), client.conn, status)
+		if err != nil {
+			slog.Error("Error writing to client", "error", err)
+			client.conn.Close(websocket.StatusInternalError, "Error writing status")
+			delete(h.hub.clients, client) // Remove the client on error
+		}
+	}
+}
+
+func (h *Handler) readStatus(ctx context.Context) SystemStatus {
+	slog.Info(">>monitorPlunge")
+	defer slog.Info("<<monitorPlunge")
+
+	roomTemp, roomTempError, waterTemp, waterTempError := h.getRecentTemperatures(ctx)
+	leakError := ""
+	leakDetected, err := h.sensors.IsLeakPresent()
+	if err != nil {
+		leakError = err.Error()
+	}
+
+	pumpError := ""
+	pumpIsOn, err := h.sensors.IsPumpOn()
+	if err != nil {
+		pumpError = err.Error()
+	}
+
+	plungeError := ""
+	ps, err := h.buildPlungeStatus(ctx, roomTemp, waterTemp)
+	if err != nil {
+		plungeError = err.Error()
+	}
+
+	ozoneError := ""
+	os, err := h.buildOzoneStatus(ctx)
+	if err != nil {
+		ozoneError = err.Error()
+	}
+
+	filterError := ""
+	fs, err := h.buildFilterStatus(ctx)
+	if err != nil {
+		filterError = err.Error()
+	}
+
+	status := SystemStatus{
+		PlungeStatus:   ps,
+		PlungeError:    plungeError,
+		OzoneStatus:    os,
+		OzoneError:     ozoneError,
+		WaterTemp:      waterTemp,
+		WaterTempError: waterTempError,
+		RoomTemp:       roomTemp,
+		RoomTempError:  roomTempError,
+		LeakDetected:   leakDetected,
+		LeakError:      leakError,
+		PumpOn:         pumpIsOn,
+		PumpError:      pumpError,
+		FilterStatus:   fs,
+		FilterError:    filterError,
+	}
+
+	return status
 }
 
 func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, waterTemp float64) (PlungeStatus, error) {

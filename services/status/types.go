@@ -7,6 +7,7 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
+	"github.com/coder/websocket"
 )
 
 type (
@@ -72,10 +73,25 @@ type (
 		GetLatestFilterChange(ctx context.Context) (database.Filter, error)
 	}
 
+	// Track clients that connect
+	Client struct {
+		conn *websocket.Conn
+		ctx  context.Context
+	}
+
+	// Hub manages WebSocket connections and broadcasts status updates
+	Hub struct {
+		clients    map[*Client]struct{}
+		register   chan *Client
+		unregister chan *Client
+		mutex      sync.Mutex
+	}
+
 	Handler struct {
 		store          StatusStore
 		sensors        sensor.Sensors
 		state          PlungeState
 		originPatterns []string
+		hub            *Hub
 	}
 )
