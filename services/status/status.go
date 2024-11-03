@@ -35,6 +35,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
 	slog.Info(">>handleWS: new incoming connection")
+	defer slog.Info("<<handleWS")
+
 	opts := &websocket.AcceptOptions{
 		OriginPatterns: h.originPatterns,
 	}
@@ -230,6 +232,13 @@ func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, water
 		if err != nil {
 			slog.Error("Failed to update current plunge avgerage temperature", "error", err)
 		}
+	} else {
+		// If it's not running, the reset the average temperature tracker
+		h.state.MU.Lock()
+		h.state.WaterTempTotal = 0.0
+		h.state.RoomTempTotal = 0.0
+		h.state.TempReadCount = 0
+		h.state.MU.Unlock()
 	}
 
 	ps := PlungeStatus{
@@ -282,9 +291,6 @@ func (h *Handler) buildFilterStatus(ctx context.Context) (FilterStatus, error) {
 	filter, err := h.store.GetLatestFilterChange(ctx)
 	if err != nil {
 		return FilterStatus{}, err
-	}
-
-	if time.Now().UTC().After(filter.RemindAt) {
 	}
 
 	fs := FilterStatus{

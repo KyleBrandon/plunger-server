@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -39,7 +40,11 @@ type serverConfig struct {
 	logger         *slog.Logger
 }
 
+var sensorType bool
+
 func main() {
+	flag.Parse() // Parse the command-line flags
+
 	config, err := initializeServerConfig()
 	if err != nil {
 		slog.Error("failed to load config file")
@@ -113,20 +118,13 @@ func initializeServerConfig() (serverConfig, error) {
 		os.Exit(1)
 	}
 
-	sensorConfig, err := sensor.NewSensorConfig(configSettings.SensorTimeoutSeconds, configSettings.Devices)
+	databaseURL, serverPort, useMockSensor := readParameters()
+
+	sensorConfig, err := sensor.NewSensorConfig(configSettings.SensorTimeoutSeconds, configSettings.Devices, useMockSensor)
 	if err != nil {
 		slog.Error("failed to initailize sensors")
 		os.Exit(1)
 	}
-
-	// read the database URL and serer port from the environment
-	err = godotenv.Load()
-	if err != nil {
-		slog.Warn("could not load .env file", "error", err)
-	}
-
-	databaseURL := os.Getenv("DATABASE_URL")
-	serverPort := os.Getenv("PORT")
 
 	sc.ServerPort = serverPort
 	sc.DatabaseURL = databaseURL
@@ -147,4 +145,32 @@ func (config *serverConfig) openDatabase() {
 
 	config.dbConnection = db
 	config.Queries = database.New(db)
+}
+
+// TODO: refactor this, it's messy
+func readParameters() (string, string, bool) {
+	// read the database URL and serer port from the environment
+	err := godotenv.Load()
+	if err != nil {
+		slog.Warn("could not load .env file", "error", err)
+	}
+
+	serverPort := ""
+	databaseURL := ""
+
+	fmt.Printf("use_mock_sensor: %v\n", sensorType)
+
+	if len(serverPort) == 0 {
+		serverPort = os.Getenv("PORT")
+	}
+
+	if len(databaseURL) == 0 {
+		databaseURL = os.Getenv("DATABASE_URL")
+	}
+
+	return databaseURL, serverPort, sensorType
+}
+
+func init() {
+	flag.BoolVar(&sensorType, "use_mock_sensor", false, "Indicate if we should use a mock sensor for the server instance.")
 }
