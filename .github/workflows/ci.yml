@@ -54,7 +54,7 @@ jobs:
           docker build \
             --platform linux/arm/v7 \
             --build-arg DATABASE_URL=${{ secrets.DATABASE_URL }} \
-            --build-arg PORT=${{ vars.PORT }} \
+            --build-arg PORT=${{ secrets.PORT }} \
             -t kylebrandon/plunger-server:latest .
 
   deploy:
@@ -74,7 +74,7 @@ jobs:
             --name plunger-server -it \
             --restart unless-stopped \
             -e DATABASE_URL=${{ secrets.DATABASE_URL }} \
-            -e PORT=${{ vars.PORT }} \
-            -p ${{ vars.PORT }}:${{ vars.PORT }} \
+            -e PORT=${{ secrets.PORT }} \
+            -p ${{ secrets.PORT }}:${{ secrets.PORT }} \
             -v config-volume:/app/config \
             kylebrandon/plunger-server:latest
