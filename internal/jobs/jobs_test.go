@@ -91,7 +91,7 @@ func TestCreateJobTimesOut(t *testing.T) {
 		Job: database.Job{},
 	}
 
-	sc := sensor.SensorConfig{}
+	sc := sensor.MockSensors{}
 
 	jobConfig := NewJobConfig(&jobStore, &sc)
 	job, err := jobConfig.StartJobWithTimeout(testTimedJob, JOBTYPE_OZONE_TIMER, 500*time.Millisecond)
@@ -115,7 +115,7 @@ func TestCreateJobWithCancel(t *testing.T) {
 		Job: database.Job{},
 	}
 
-	sc := sensor.SensorConfig{}
+	sc := sensor.MockSensors{}
 
 	jobConfig := NewJobConfig(&jobStore, &sc)
 	job, err := jobConfig.StartJob(testTimedJob, JOBTYPE_OZONE_TIMER)

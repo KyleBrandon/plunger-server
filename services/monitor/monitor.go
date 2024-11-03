@@ -93,7 +93,7 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 		case <-time.After(5 * time.Second):
 
 			ozone, err := h.store.GetLatestOzoneEntry(ctx)
-			if err != nil {
+			if err != nil && err.Error() != "sql: no rows in result set" {
 				slog.Error("failed to query the latest ozone job", "error", err)
 				continue
 			}

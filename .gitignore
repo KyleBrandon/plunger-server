@@ -5,5 +5,8 @@ out
 .fuse*
 plunger-server
 goose.sh
+goose-test.sh
 goose-down.sh
+goose-test-down.sh
+config/
 
