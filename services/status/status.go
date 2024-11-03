@@ -106,7 +106,7 @@ func (h *Handler) run() {
 			for client := range hub.clients {
 				err := client.conn.Ping(client.ctx)
 				if err != nil {
-					slog.Error("monitorPlunge: error sending ping", "error", err)
+					slog.Error("Error sending ping", "error", err)
 					hub.unregister <- client
 				}
 
@@ -133,9 +133,6 @@ func (h *Handler) broadcastStatus() {
 }
 
 func (h *Handler) readStatus(ctx context.Context) SystemStatus {
-	slog.Info(">>monitorPlunge")
-	defer slog.Info("<<monitorPlunge")
-
 	roomTemp, roomTempError, waterTemp, waterTempError := h.getRecentTemperatures(ctx)
 	leakError := ""
 	leakDetected, err := h.sensors.IsLeakPresent()
