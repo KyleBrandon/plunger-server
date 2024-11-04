@@ -123,7 +123,7 @@ func (h *Handler) broadcastStatus() {
 	status := h.readStatus(context.Background())
 	for client := range h.hub.clients {
 		// Send the status to each client
-		err := wsjson.Write(context.Background(), client.conn, status)
+		err := wsjson.Write(client.ctx, client.conn, status)
 		if err != nil {
 			slog.Error("Error writing to client", "error", err)
 			client.conn.Close(websocket.StatusInternalError, "Error writing status")
