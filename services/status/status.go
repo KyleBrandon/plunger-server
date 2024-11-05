@@ -67,20 +67,23 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 
 		case <-ticker.C:
 			slog.Info(">>ticker")
-			defer slog.Info("<<ticker")
 
 			roomTemp, roomTempError, waterTemp, waterTempError := h.getRecentTemperatures(ctx)
+			// leakError := ""
+			// leakDetected, err := h.sensors.IsLeakPresent()
+			// if err != nil {
+			// 	leakError = err.Error()
+			// }
+			//
+			// pumpError := ""
+			// pumpIsOn, err := h.sensors.IsPumpOn()
+			// if err != nil {
+			// 	pumpError = err.Error()
+			// }
 			leakError := ""
-			leakDetected, err := h.sensors.IsLeakPresent()
-			if err != nil {
-				leakError = err.Error()
-			}
-
+			leakDetected := false
 			pumpError := ""
-			pumpIsOn, err := h.sensors.IsPumpOn()
-			if err != nil {
-				pumpError = err.Error()
-			}
+			pumpIsOn := true
 
 			plungeError := ""
 			ps, err := h.buildPlungeStatus(ctx, roomTemp, waterTemp)
@@ -124,15 +127,18 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 				return
 			}
 
+			slog.Info("<<ticker")
+
 		case <-heartbeatTicker.C:
 			slog.Info(">>heartbeat")
-			defer slog.Info("<<heartbeat")
 			err := c.Ping(ctx)
 			if err != nil {
 				slog.Error("monitorPlunge: error sending ping", "error", err)
 				c.Close(websocket.StatusInternalError, "error sending ping")
 				return
 			}
+
+			slog.Info("<<heartbeat")
 		}
 	}
 }
