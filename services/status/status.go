@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
-	"runtime/pprof"
 	"strconv"
 	"time"
 
@@ -52,15 +50,6 @@ func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
-	f, err := os.Create("./config/cpu.prof")
-	if err != nil {
-		slog.Error("failed to create profile file")
-		os.Exit(1)
-	}
-
-	pprof.StartCPUProfile(f)
-	defer pprof.StopCPUProfile()
-
 	slog.Info(">>monitorPlunge")
 	defer slog.Info("<<monitorPlunge")
 
@@ -80,29 +69,33 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 			slog.Info(">>ticker")
 
 			roomTemp, roomTempError, waterTemp, waterTempError := h.getRecentTemperatures(ctx)
+			leakDetected := false
 			leakError := ""
-			leakDetected, err := h.sensors.IsLeakPresent()
-			if err != nil {
-				leakError = err.Error()
-			}
+			// leakDetected, err := h.sensors.IsLeakPresent()
+			// if err != nil {
+			// 	leakError = err.Error()
+			// }
 
+			pumpIsOn := true
 			pumpError := ""
-			pumpIsOn, err := h.sensors.IsPumpOn()
-			if err != nil {
-				pumpError = err.Error()
-			}
+			// pumpIsOn, err := h.sensors.IsPumpOn()
+			// if err != nil {
+			// 	pumpError = err.Error()
+			// }
 
+			ps := PlungeStatus{}
 			plungeError := ""
-			ps, err := h.buildPlungeStatus(ctx, roomTemp, waterTemp)
-			if err != nil {
-				plungeError = err.Error()
-			}
+			// ps, err := h.buildPlungeStatus(ctx, roomTemp, waterTemp)
+			// if err != nil {
+			// 	plungeError = err.Error()
+			// }
 
+			os := OzoneStatus{}
 			ozoneError := ""
-			os, err := h.buildOzoneStatus(ctx)
-			if err != nil {
-				ozoneError = err.Error()
-			}
+			// os, err := h.buildOzoneStatus(ctx)
+			// if err != nil {
+			// 	ozoneError = err.Error()
+			// }
 
 			filterError := ""
 			fs := FilterStatus{}
@@ -128,7 +121,7 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 				FilterError:    filterError,
 			}
 
-			err = wsjson.Write(ctx, c, status)
+			err := wsjson.Write(ctx, c, status)
 			if err != nil {
 				slog.Error("monitorPlunge: error writing to client", "error", err)
 				c.Close(websocket.StatusInternalError, "error writing status")
