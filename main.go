@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"runtime/pprof"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/jobs"
@@ -43,6 +44,15 @@ type serverConfig struct {
 var sensorType bool
 
 func main() {
+	f, err := os.Create("cpu.prof")
+	if err != nil {
+		slog.Error("failed to create profile file")
+		os.Exit(1)
+	}
+
+	pprof.StartCPUProfile(f)
+	defer pprof.StopCPUProfile()
+
 	flag.Parse() // Parse the command-line flags
 
 	config, err := initializeServerConfig()
