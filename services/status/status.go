@@ -69,21 +69,17 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 			slog.Info(">>ticker")
 
 			roomTemp, roomTempError, waterTemp, waterTempError := h.getRecentTemperatures(ctx)
-			// leakError := ""
-			// leakDetected, err := h.sensors.IsLeakPresent()
-			// if err != nil {
-			// 	leakError = err.Error()
-			// }
-			//
-			// pumpError := ""
-			// pumpIsOn, err := h.sensors.IsPumpOn()
-			// if err != nil {
-			// 	pumpError = err.Error()
-			// }
 			leakError := ""
-			leakDetected := false
+			leakDetected, err := h.sensors.IsLeakPresent()
+			if err != nil {
+				leakError = err.Error()
+			}
+
 			pumpError := ""
-			pumpIsOn := true
+			pumpIsOn, err := h.sensors.IsPumpOn()
+			if err != nil {
+				pumpError = err.Error()
+			}
 
 			plungeError := ""
 			ps, err := h.buildPlungeStatus(ctx, roomTemp, waterTemp)
@@ -98,10 +94,11 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 			}
 
 			filterError := ""
-			fs, err := h.buildFilterStatus(ctx)
-			if err != nil {
-				filterError = err.Error()
-			}
+			fs := FilterStatus{}
+			// fs, err := h.buildFilterStatus(ctx)
+			// if err != nil {
+			// 	filterError = err.Error()
+			// }
 
 			status := SystemStatus{
 				PlungeStatus:   ps,
