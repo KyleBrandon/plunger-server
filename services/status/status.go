@@ -66,6 +66,8 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 			return
 
 		case <-ticker.C:
+			slog.Info(">>ticker")
+			defer slog.Info("<<ticker")
 
 			roomTemp, roomTempError, waterTemp, waterTempError := h.getRecentTemperatures(ctx)
 			leakError := ""
@@ -123,6 +125,8 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 			}
 
 		case <-heartbeatTicker.C:
+			slog.Info(">>heartbeat")
+			defer slog.Info("<<heartbeat")
 			err := c.Ping(ctx)
 			if err != nil {
 				slog.Error("monitorPlunge: error sending ping", "error", err)
