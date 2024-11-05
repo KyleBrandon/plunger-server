@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"runtime/pprof"
 	"strconv"
 	"time"
 
@@ -50,6 +52,15 @@ func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
+	f, err := os.Create("./config/cpu.prof")
+	if err != nil {
+		slog.Error("failed to create profile file")
+		os.Exit(1)
+	}
+
+	pprof.StartCPUProfile(f)
+	defer pprof.StopCPUProfile()
+
 	slog.Info(">>monitorPlunge")
 	defer slog.Info("<<monitorPlunge")
 
