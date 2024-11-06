@@ -2,13 +2,11 @@ package status
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -164,28 +162,28 @@ func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, water
 	}
 
 	// while the plunge is running, track live average temperatures, otherwise display what's stored in the database
-	if p.Running {
-		h.state.MU.Lock()
-		avgRoomTemp, avgWaterTemp = h.updateAverageTemperatures(roomTemp, waterTemp)
-		h.state.MU.Unlock()
-
-		arg := database.UpdatePlungeAvgTempParams{
-			ID:           p.ID,
-			AvgRoomTemp:  fmt.Sprintf("%f", avgRoomTemp),
-			AvgWaterTemp: fmt.Sprintf("%f", avgWaterTemp),
-		}
-		_, err = h.store.UpdatePlungeAvgTemp(ctx, arg)
-		if err != nil {
-			slog.Error("Failed to update current plunge avgerage temperature", "error", err)
-		}
-	} else {
-		// If it's not running, the reset the average temperature tracker
-		h.state.MU.Lock()
-		h.state.WaterTempTotal = 0.0
-		h.state.RoomTempTotal = 0.0
-		h.state.TempReadCount = 0
-		h.state.MU.Unlock()
-	}
+	// if p.Running {
+	// 	h.state.MU.Lock()
+	// 	avgRoomTemp, avgWaterTemp = h.updateAverageTemperatures(roomTemp, waterTemp)
+	// 	h.state.MU.Unlock()
+	//
+	// 	arg := database.UpdatePlungeAvgTempParams{
+	// 		ID:           p.ID,
+	// 		AvgRoomTemp:  fmt.Sprintf("%f", avgRoomTemp),
+	// 		AvgWaterTemp: fmt.Sprintf("%f", avgWaterTemp),
+	// 	}
+	// 	_, err = h.store.UpdatePlungeAvgTemp(ctx, arg)
+	// 	if err != nil {
+	// 		slog.Error("Failed to update current plunge avgerage temperature", "error", err)
+	// 	}
+	// } else {
+	// 	// If it's not running, the reset the average temperature tracker
+	// 	h.state.MU.Lock()
+	// 	h.state.WaterTempTotal = 0.0
+	// 	h.state.RoomTempTotal = 0.0
+	// 	h.state.TempReadCount = 0
+	// 	h.state.MU.Unlock()
+	// }
 
 	ps := PlungeStatus{
 		StartTime:        p.StartTime.Time,
