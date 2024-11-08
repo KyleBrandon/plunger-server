@@ -49,7 +49,8 @@ func databaseToOzoneResult(db database.Ozone) OzoneResult {
 }
 
 func (h *Handler) handlerOzoneGet(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("handlerGetOzone")
+	slog.Info(">>handlerGetOzone")
+	defer slog.Info("<<handlerGetOzone")
 
 	job, err := h.store.GetLatestOzoneEntry(r.Context())
 	if err != nil {
@@ -62,7 +63,8 @@ func (h *Handler) handlerOzoneGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("handlerStartOzone")
+	slog.Info(">>handlerStartOzone")
+	defer slog.Info("<<handlerStartOzone")
 
 	ozone, err := h.store.GetLatestOzoneEntry(r.Context())
 	if err == nil && ozone.Running {
@@ -123,7 +125,8 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handlerOzoneStop(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("handlerStopOzone")
+	slog.Info(">>handlerStopOzone")
+	defer slog.Info("<<handlerStopOzone")
 
 	ozone, err := h.store.GetLatestOzoneEntry(r.Context())
 	if err != nil {

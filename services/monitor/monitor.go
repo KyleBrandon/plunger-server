@@ -22,12 +22,15 @@ func NewHandler(store MonitorStore, sensors sensor.Sensors) *Handler {
 func (h *Handler) StartMonitorRoutines(ctx context.Context) {
 	go h.monitorTemperatures(ctx)
 	go h.monitorOzone(ctx)
-	go h.monitorLeaks(ctx)
+	// go h.monitorLeaks(ctx)
 }
 
 func (h *Handler) monitorTemperatures(ctx context.Context) {
 	slog.Info(">>monitorTemperatures")
 	defer slog.Info("<<monitorTemperatures")
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -35,7 +38,7 @@ func (h *Handler) monitorTemperatures(ctx context.Context) {
 			slog.Info("<<monitorTemperatures")
 			return
 
-		case <-time.After(30 * time.Second):
+		case <-ticker.C:
 
 			waterTemp := sql.NullString{
 				Valid: false,
@@ -74,8 +77,12 @@ func (h *Handler) monitorTemperatures(ctx context.Context) {
 func (h *Handler) monitorOzone(ctx context.Context) {
 	slog.Info(">>monitorOzone")
 	defer slog.Info("<<monitorOzone")
-	// start with the ozone off
+	// start and stop with the ozone off
 	h.sensors.TurnOzoneOff()
+	defer h.sensors.TurnOzoneOff()
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -90,7 +97,7 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 
 			return
 
-		case <-time.After(5 * time.Second):
+		case <-ticker.C:
 
 			ozone, err := h.store.GetLatestOzoneEntry(ctx)
 			if err != nil && err.Error() != "sql: no rows in result set" {
@@ -159,40 +166,6 @@ func (h *Handler) updateOzoneStatus(ctx context.Context, id uuid.UUID, statusMes
 	}
 }
 
-func (h *Handler) processLeakReading(ctx context.Context, leakDetected bool) error {
-	var leak database.Leak
-	var err error
-
-	// if a leak was detected then create a new record to track it
-	if leakDetected {
-		leak, err = h.store.CreateLeakDetected(ctx, time.Now().UTC())
-		if err != nil {
-			slog.Error("failed to store leak detection in database", "error", err)
-			// TODO: we should have alternative means of reporting this
-		}
-	} else {
-		// if there is currently no leak, see if we need to report it being cleared
-		leak, err = h.store.GetLatestLeakDetected(ctx)
-		if err != nil {
-			slog.Warn("failed to read the latest leak from the database, create a new entry", "error", err)
-			return err
-		}
-
-		// the entry's cleared_at should not be set
-		if !leak.ClearedAt.Valid {
-			leak, err = h.store.ClearDetectedLeak(ctx, leak.ID)
-			if err != nil {
-				slog.Error("failed to clear detected leak in database", "error", err)
-			}
-		} else {
-			// we think there should be a leak that was cleared but the database already has a cleared
-			slog.Warn("inconsistent database state, we think there should be a leak that we are clearing")
-		}
-	}
-
-	return nil
-}
-
 func (h *Handler) monitorLeaks(ctx context.Context) {
 	slog.Info(">>monitorLeaks")
 	defer slog.Info("<<monitorLeaks")
@@ -244,4 +217,38 @@ func (h *Handler) monitorLeaks(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (h *Handler) processLeakReading(ctx context.Context, leakDetected bool) error {
+	var leak database.Leak
+	var err error
+
+	// if a leak was detected then create a new record to track it
+	if leakDetected {
+		leak, err = h.store.CreateLeakDetected(ctx, time.Now().UTC())
+		if err != nil {
+			slog.Error("failed to store leak detection in database", "error", err)
+			// TODO: we should have alternative means of reporting this
+		}
+	} else {
+		// if there is currently no leak, see if we need to report it being cleared
+		leak, err = h.store.GetLatestLeakDetected(ctx)
+		if err != nil {
+			slog.Warn("failed to read the latest leak from the database, create a new entry", "error", err)
+			return err
+		}
+
+		// the entry's cleared_at should not be set
+		if !leak.ClearedAt.Valid {
+			leak, err = h.store.ClearDetectedLeak(ctx, leak.ID)
+			if err != nil {
+				slog.Error("failed to clear detected leak in database", "error", err)
+			}
+		} else {
+			// we think there should be a leak that was cleared but the database already has a cleared
+			slog.Warn("inconsistent database state, we think there should be a leak that we are clearing")
+		}
+	}
+
+	return nil
 }
