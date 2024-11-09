@@ -22,7 +22,7 @@ func NewHandler(store MonitorStore, sensors sensor.Sensors) *Handler {
 func (h *Handler) StartMonitorRoutines(ctx context.Context) {
 	go h.monitorTemperatures(ctx)
 	go h.monitorOzone(ctx)
-	// go h.monitorLeaks(ctx)
+	go h.monitorLeaks(ctx)
 }
 
 func (h *Handler) monitorTemperatures(ctx context.Context) {
@@ -184,6 +184,9 @@ func (h *Handler) monitorLeaks(ctx context.Context) {
 		}
 	}
 
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
 
@@ -192,7 +195,7 @@ func (h *Handler) monitorLeaks(ctx context.Context) {
 
 			return
 
-		case <-time.After(5 * time.Second):
+		case <-ticker.C:
 
 			currentLeakReading, err := h.sensors.IsLeakPresent()
 			if err != nil {
