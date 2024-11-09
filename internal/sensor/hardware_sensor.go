@@ -90,6 +90,8 @@ func (s *HardwareSensors) TurnOzoneOn() error {
 	slog.Info(">>TurnOzoneOn")
 	defer slog.Info("<<TurnOzoneOn")
 
+	slog.Info("ozone device", "config", s.config.OzoneDevice)
+
 	return turnDeviceOn(&s.config.OzoneDevice)
 }
 
