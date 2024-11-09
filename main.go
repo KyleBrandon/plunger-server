@@ -158,7 +158,7 @@ func readParameters() (string, string, bool) {
 	serverPort := ""
 	databaseURL := ""
 
-	fmt.Printf("use_mock_sensor: %v\n", sensorType)
+	slog.Info("sensor type", "use_mock_sensor", sensorType)
 
 	if len(serverPort) == 0 {
 		serverPort = os.Getenv("PORT")

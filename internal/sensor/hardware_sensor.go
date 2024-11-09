@@ -93,6 +93,10 @@ func (s *HardwareSensors) TurnOzoneOn() error {
 	slog.Info("ozone device", "config", s.config.OzoneDevice)
 
 	err := turnDeviceOn(&s.config.OzoneDevice)
+	if err != nil {
+		slog.Error("failed to turn ozone generator on", "error", err)
+		return err
+	}
 
 	deviceOn, err := isDeviceOn(&s.config.OzoneDevice)
 	slog.Info("ozone on", "err", err, "result", deviceOn)
@@ -159,8 +163,8 @@ func isDeviceOn(device *DeviceConfig) (bool, error) {
 }
 
 func turnDeviceOn(device *DeviceConfig) error {
-	slog.Debug(">>turnDeviceOn", "name", device.Name)
-	defer slog.Debug("<<turnDeviceOn", "name", device.Name)
+	slog.Info(">>turnDeviceOn", "name", device.Name)
+	defer slog.Info("<<turnDeviceOn", "name", device.Name)
 
 	if err := rpio.Open(); err != nil {
 		return err
