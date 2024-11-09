@@ -69,4 +69,4 @@ jobs:
           PORT: ${{secrets.PORT}}
 
         run: |
-          nohup ./plunger-server &
+          nohup ./plunger-server > server.log 2>&1 &
