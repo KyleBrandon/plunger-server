@@ -182,8 +182,10 @@ func turnDeviceOn(device *DeviceConfig) error {
 
 	// if the device is normally on, that means the pin is low when it is on
 	if device.NormallyOn {
+		slog.Info("setting pin low")
 		pin.Low()
 	} else {
+		slog.Info("setting pin high")
 		pin.High()
 	}
 
