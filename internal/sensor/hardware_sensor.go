@@ -92,7 +92,12 @@ func (s *HardwareSensors) TurnOzoneOn() error {
 
 	slog.Info("ozone device", "config", s.config.OzoneDevice)
 
-	return turnDeviceOn(&s.config.OzoneDevice)
+	err := turnDeviceOn(&s.config.OzoneDevice)
+
+	deviceOn, err := isDeviceOn(&s.config.OzoneDevice)
+	slog.Info("ozone on", "err", err, "result", deviceOn)
+
+	return err
 }
 
 func (s *HardwareSensors) TurnOzoneOff() error {
