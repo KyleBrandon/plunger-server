@@ -110,6 +110,7 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 
 			// while there is a recent ozone job that is running, check if it should be stopped
 			if ozone.Running {
+				slog.Info("Ozone Running")
 				// Ozone is running so determine if the duration has elapsed and turn off the generator if it has
 				elapsedTime := time.Since(ozone.StartTime.Time)
 				duration := time.Duration(ozone.ExpectedDuration) * time.Minute
@@ -117,6 +118,8 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 
 				// if the remaining time is zero (ozone finished) then turn the ozone generator off
 				if remaining <= 0 {
+
+					slog.Info("Ozone time remaining 0")
 					// turn off the ozone generator
 					err := h.sensors.TurnOzoneOff()
 					if err != nil {
@@ -133,6 +136,8 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 					}
 				}
 			} else {
+
+				slog.Info("Ozone Stopped")
 				// safe guard to ensure that the ozone is stopped when it should be stopped
 				err = h.sensors.TurnOzoneOff()
 				if err != nil {

@@ -87,15 +87,15 @@ func (s *HardwareSensors) IsLeakPresent() (bool, error) {
 }
 
 func (s *HardwareSensors) TurnOzoneOn() error {
-	slog.Debug(">>TurnOzoneOn")
-	defer slog.Debug("<<TurnOzoneOn")
+	slog.Info(">>TurnOzoneOn")
+	defer slog.Info("<<TurnOzoneOn")
 
 	return turnDeviceOn(&s.config.OzoneDevice)
 }
 
 func (s *HardwareSensors) TurnOzoneOff() error {
-	slog.Debug(">>TurnOzoneOff")
-	defer slog.Debug("<<TurnOzoneOff")
+	slog.Info(">>TurnOzoneOff")
+	defer slog.Info("<<TurnOzoneOff")
 
 	return turnDeviceOff(&s.config.OzoneDevice)
 }
