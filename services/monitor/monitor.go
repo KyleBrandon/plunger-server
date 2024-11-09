@@ -29,13 +29,16 @@ func (h *Handler) monitorTemperatures(ctx context.Context) {
 	slog.Info(">>monitorTemperatures")
 	defer slog.Info("<<monitorTemperatures")
 
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			slog.Info("<<monitorTemperatures")
 			return
 
-		case <-time.After(30 * time.Second):
+		case <-ticker.C:
 
 			waterTemp := sql.NullString{
 				Valid: false,
@@ -74,8 +77,12 @@ func (h *Handler) monitorTemperatures(ctx context.Context) {
 func (h *Handler) monitorOzone(ctx context.Context) {
 	slog.Info(">>monitorOzone")
 	defer slog.Info("<<monitorOzone")
-	// start with the ozone off
+	// start and stop with the ozone off
 	h.sensors.TurnOzoneOff()
+	defer h.sensors.TurnOzoneOff()
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -90,7 +97,7 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 
 			return
 
-		case <-time.After(5 * time.Second):
+		case <-ticker.C:
 
 			ozone, err := h.store.GetLatestOzoneEntry(ctx)
 			if err != nil && err.Error() != "sql: no rows in result set" {
@@ -159,6 +166,62 @@ func (h *Handler) updateOzoneStatus(ctx context.Context, id uuid.UUID, statusMes
 	}
 }
 
+func (h *Handler) monitorLeaks(ctx context.Context) {
+	slog.Info(">>monitorLeaks")
+	defer slog.Info("<<monitorLeaks")
+	// take an initial reading of the leak sensor so we can detect transitions from true/false
+	prevLeakReading, err := h.sensors.IsLeakPresent()
+	if err != nil {
+		slog.Warn("failed to read sensor to determine if a leak is present", "error", err)
+	}
+
+	// if there is a leak present at start create a leak entry
+	if prevLeakReading {
+		_, err := h.store.CreateLeakDetected(ctx, time.Now().UTC())
+		if err != nil {
+			slog.Error("failed to store leak detection in database", "error", err)
+			// TODO: we should have alternative means of reporting this
+		}
+	}
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+
+		case <-ctx.Done():
+			// task was canceled or timedout
+
+			return
+
+		case <-ticker.C:
+
+			currentLeakReading, err := h.sensors.IsLeakPresent()
+			if err != nil {
+				slog.Warn("failed to read if leak was present", "error", err)
+			}
+
+			// have we had a change since we last read the sensor?
+			if prevLeakReading != currentLeakReading {
+				h.processLeakReading(ctx, currentLeakReading)
+
+				prevLeakReading = currentLeakReading
+			}
+
+			// if a leak was detected, then turn the pump off
+			// TODO: this should be an event that we have listeners on
+			if currentLeakReading {
+				err = h.sensors.TurnPumpOff()
+				if err != nil {
+					// TODO: notify the user that we could not turn the pump off
+					slog.Error("failed to turn pump off while leak detected", "error", err)
+				}
+			}
+		}
+	}
+}
+
 func (h *Handler) processLeakReading(ctx context.Context, leakDetected bool) error {
 	var leak database.Leak
 	var err error
@@ -191,57 +254,4 @@ func (h *Handler) processLeakReading(ctx context.Context, leakDetected bool) err
 	}
 
 	return nil
-}
-
-func (h *Handler) monitorLeaks(ctx context.Context) {
-	slog.Info(">>monitorLeaks")
-	defer slog.Info("<<monitorLeaks")
-	// take an initial reading of the leak sensor so we can detect transitions from true/false
-	prevLeakReading, err := h.sensors.IsLeakPresent()
-	if err != nil {
-		slog.Warn("failed to read sensor to determine if a leak is present", "error", err)
-	}
-
-	// if there is a leak present at start create a leak entry
-	if prevLeakReading {
-		_, err := h.store.CreateLeakDetected(ctx, time.Now().UTC())
-		if err != nil {
-			slog.Error("failed to store leak detection in database", "error", err)
-			// TODO: we should have alternative means of reporting this
-		}
-	}
-
-	for {
-		select {
-
-		case <-ctx.Done():
-			// task was canceled or timedout
-
-			return
-
-		case <-time.After(5 * time.Second):
-
-			currentLeakReading, err := h.sensors.IsLeakPresent()
-			if err != nil {
-				slog.Warn("failed to read if leak was present", "error", err)
-			}
-
-			// have we had a change since we last read the sensor?
-			if prevLeakReading != currentLeakReading {
-				h.processLeakReading(ctx, currentLeakReading)
-
-				prevLeakReading = currentLeakReading
-			}
-
-			// if a leak was detected, then turn the pump off
-			// TODO: this should be an event that we have listeners on
-			if currentLeakReading {
-				err = h.sensors.TurnPumpOff()
-				if err != nil {
-					// TODO: notify the user that we could not turn the pump off
-					slog.Error("failed to turn pump off while leak detected", "error", err)
-				}
-			}
-		}
-	}
 }

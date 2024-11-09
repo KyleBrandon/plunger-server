@@ -29,7 +29,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("handlePlungesGet")
+	slog.Info(">>handlePlungesGet")
+	defer slog.Info("<<handlePlungesGet")
 
 	p, err := h.store.GetLatestPlunge(r.Context())
 	if err != nil {
@@ -43,7 +44,8 @@ func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("handlePlungesStart")
+	slog.Info(">>handlePlungesStart")
+	defer slog.Info("<<handlePlungesStart")
 
 	// TODO: change this to be in the body
 	durationStr := r.URL.Query().Get("duration")
@@ -81,7 +83,8 @@ func (h *Handler) handlePlungesStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("handlePlungesStop")
+	slog.Info(">>handlePlungesStop")
+	defer slog.Info("<<handlePlungesStop")
 
 	p, err := h.store.GetLatestPlunge(r.Context())
 	if err != nil {
