@@ -39,7 +39,7 @@ jobs:
           path: ./test-results
 
   # Build workflow
-  build:
+  build-and-run:
     # self hosted runner to build on a RPI
     runs-on: self-hosted
 
@@ -48,33 +48,63 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      # build Docker image for Raspberry Pi
-      - name: Build Docker image
-        run: |
-          docker build \
-            --platform linux/arm/v7 \
-            --build-arg DATABASE_URL=${{ secrets.DATABASE_URL }} \
-            --build-arg PORT=${{ secrets.PORT }} \
-            -t kylebrandon/plunger-server:latest .
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.22
 
-  deploy:
-    needs: build
-    runs-on: self-hosted
-    steps:
-      # Stop and remove the existing container
-      - name: Stop and Remove Existing Docker Container
+      - name: Build Go Webserver
         run: |
-          docker stop plunger-server || true
-          docker rm plunger-server || true
+          go build -o ./plunger-server
 
-      # Deploy Docker container
-      - name: Run Docker Container
+      - name: Move Binary to System Location
         run: |
-          docker run --privileged -d \
-            --name plunger-server -it \
-            --restart unless-stopped \
-            -e DATABASE_URL=${{ secrets.DATABASE_URL }} \
-            -e PORT=${{ secrets.PORT }} \
-            -p ${{ secrets.PORT }}:${{ secrets.PORT }} \
-            -v config-volume:/app/config \
-            kylebrandon/plunger-server:latest
+          sudo mv ./plunger-server /usr/local/bin/plunger-server
+          sudo chmod +x /usr/local/bin/plunger-server
+
+      - name: Move Config file to /etc/plunger-server
+        run: |
+          sudo mkdir -p /etc/plunger-server
+          sudo cp config_template.json /etc/plunger-server/config.json
+          sudo chown brander:brander /etc/plunger-server/config.json
+          sudo chmod 664 /etc/plunger-server/config.json
+
+      - name: Ensure Log File Exists and Set Permissions
+        run: |
+          sudo touch /var/log/plunger-server.log
+          sudo chown brander:brander /var/log/plunger-server.log
+          sudo chmod 664 /var/log/plunger-server.log
+
+      # Create or Update Systemd Service
+      - name: Create or Update Systemd Service
+        run: |
+          echo "[Unit]
+          Description=Plunger Server
+          After=network.target
+
+          [Service]
+          ExecStart=/usr/local/bin/plunger-server 
+          Environment=DATABASE_URL=${{ secrets.DATABASE_URL }}
+          Environment=PORT=${{ secrets.PORT }}
+          Environment=LOG_FILE_LOCATION=/var/log/plunger-server.log
+          Environment=CONFIG_FILE_LOCATION=/etc/plunger-server/config.json
+          Restart=always
+          User=brander
+          WorkingDirectory=/usr/local/bin
+          StandardOutput=append:/var/log/plunger-server.log
+          StandardError=append:/var/log/plunger-server.log
+
+          [Install]
+          WantedBy=multi-user.target" | sudo tee /etc/systemd/system/plunger-server.service
+
+      # Restart the service
+      - name: Restart Plunger Server Service
+        run: |
+          sudo systemctl daemon-reload
+          sudo systemctl enable plunger-server
+          sudo systemctl restart plunger-server
+
+      # Check service status
+      - name: Check Service Status
+        run: |
+          sudo systemctl status plunger-server

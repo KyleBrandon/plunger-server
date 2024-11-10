@@ -102,6 +102,7 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 
 	err = h.sensor.TurnOzoneOn()
 	if err != nil {
+		slog.Error("failed to turn ozone generator on", "error", err)
 		message := fmt.Sprintf("Failed to turn on ozone generator: %v", err.Error())
 		updateArgs := database.UpdateOzoneEntryStatusParams{
 			ID:            ozone.ID,

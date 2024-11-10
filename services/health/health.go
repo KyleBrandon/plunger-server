@@ -6,20 +6,16 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/KyleBrandon/plunger-server/utils"
 )
 
-const DefaultLogLevel = slog.LevelInfo
-
-var current_level *slog.LevelVar
-
-func NewHandler(logger *slog.Logger) *Handler {
+func NewHandler(levelVar *slog.LevelVar, logger *slog.Logger) *Handler {
 	h := Handler{}
 	h.logger = logger
-	h.level = DefaultLogLevel
+	h.levelVar = levelVar
+	// h.level = DefaultLogLevel
 	return &h
 }
 
@@ -46,12 +42,13 @@ func (h *Handler) handlerLoggerGet(w http.ResponseWriter, r *http.Request) {
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	slog.Info("Current log level", "level", h.level.String())
+	logLevel := h.levelVar.Level().String()
+	slog.Info("Current log level", "level", logLevel)
 
 	response := struct {
 		LogLevel string `json:"log_level"`
 	}{
-		LogLevel: fmt.Sprintf("Current log level: %s", h.level.String()),
+		LogLevel: fmt.Sprintf("Current log level: %s", logLevel),
 	}
 
 	utils.RespondWithJSON(w, http.StatusOK, response)
@@ -87,7 +84,7 @@ func (h *Handler) handlerLoggerUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	current_level.Set(level)
+	h.levelVar.Set(level)
 
 	utils.RespondWithNoContent(w, http.StatusOK)
 }
@@ -107,16 +104,4 @@ func parseLogLevel(logLevel string) (slog.Level, error) {
 	default:
 		return slog.LevelInfo, fmt.Errorf("invalid log level: %s", logLevel)
 	}
-}
-
-func ConfigureLogger() *slog.Logger {
-	// TODO: don't like a global
-	current_level = new(slog.LevelVar)
-	current_level.Set(DefaultLogLevel)
-
-	logger := slog.New(slog.NewTextHandler(os.Stderr,
-		&slog.HandlerOptions{Level: current_level}))
-	slog.SetDefault(logger)
-
-	return logger
 }
