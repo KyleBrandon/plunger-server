@@ -30,8 +30,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
-	slog.Info(">>handleWS: new incoming connection")
-	defer slog.Info("<<handleWS")
+	slog.Debug(">>handleWS: new incoming connection")
+	defer slog.Debug("<<handleWS")
 
 	opts := &websocket.AcceptOptions{
 		OriginPatterns: h.originPatterns,
@@ -50,8 +50,8 @@ func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
-	slog.Info(">>monitorPlunge")
-	defer slog.Info("<<monitorPlunge")
+	slog.Debug(">>monitorPlunge")
+	defer slog.Debug("<<monitorPlunge")
 
 	ticker := time.NewTicker(1 * time.Second)
 	heartbeatTicker := time.NewTicker(30 * time.Second)

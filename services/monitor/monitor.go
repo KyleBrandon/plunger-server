@@ -26,8 +26,8 @@ func (h *Handler) StartMonitorRoutines(ctx context.Context) {
 }
 
 func (h *Handler) monitorTemperatures(ctx context.Context) {
-	slog.Info(">>monitorTemperatures")
-	defer slog.Info("<<monitorTemperatures")
+	slog.Debug(">>monitorTemperatures")
+	defer slog.Debug("<<monitorTemperatures")
 
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -35,7 +35,7 @@ func (h *Handler) monitorTemperatures(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("<<monitorTemperatures")
+			slog.Info("monitorTemperatures: context done")
 			return
 
 		case <-ticker.C:
@@ -75,8 +75,8 @@ func (h *Handler) monitorTemperatures(ctx context.Context) {
 }
 
 func (h *Handler) monitorOzone(ctx context.Context) {
-	slog.Info(">>monitorOzone")
-	defer slog.Info("<<monitorOzone")
+	slog.Debug(">>monitorOzone")
+	defer slog.Debug("<<monitorOzone")
 	// start and stop with the ozone off
 	h.sensors.TurnOzoneOff()
 	defer h.sensors.TurnOzoneOff()
@@ -87,7 +87,7 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("monitorOzone done")
+			slog.Info("monitorOzone: context done")
 			// if the ozone monitor routne is canceled then we should ensure the generator is stopped
 			err := h.sensors.TurnOzoneOff()
 			if err != nil {
@@ -110,7 +110,6 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 
 			// while there is a recent ozone job that is running, check if it should be stopped
 			if ozone.Running {
-				slog.Info("Ozone Running")
 				// Ozone is running so determine if the duration has elapsed and turn off the generator if it has
 				elapsedTime := time.Since(ozone.StartTime.Time)
 				duration := time.Duration(ozone.ExpectedDuration) * time.Minute
@@ -119,7 +118,6 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 				// if the remaining time is zero (ozone finished) then turn the ozone generator off
 				if remaining <= 0 {
 
-					slog.Info("Ozone time remaining 0")
 					// turn off the ozone generator
 					err := h.sensors.TurnOzoneOff()
 					if err != nil {
@@ -137,7 +135,6 @@ func (h *Handler) monitorOzone(ctx context.Context) {
 				}
 			} else {
 
-				slog.Info("Ozone Stopped")
 				// safe guard to ensure that the ozone is stopped when it should be stopped
 				err = h.sensors.TurnOzoneOff()
 				if err != nil {
@@ -172,8 +169,8 @@ func (h *Handler) updateOzoneStatus(ctx context.Context, id uuid.UUID, statusMes
 }
 
 func (h *Handler) monitorLeaks(ctx context.Context) {
-	slog.Info(">>monitorLeaks")
-	defer slog.Info("<<monitorLeaks")
+	slog.Debug(">>monitorLeaks")
+	defer slog.Debug("<<monitorLeaks")
 	// take an initial reading of the leak sensor so we can detect transitions from true/false
 	prevLeakReading, err := h.sensors.IsLeakPresent()
 	if err != nil {
@@ -197,7 +194,7 @@ func (h *Handler) monitorLeaks(ctx context.Context) {
 
 		case <-ctx.Done():
 			// task was canceled or timedout
-
+			slog.Info("monitorLeaks: context done")
 			return
 
 		case <-ticker.C:

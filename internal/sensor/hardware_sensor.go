@@ -87,26 +87,15 @@ func (s *HardwareSensors) IsLeakPresent() (bool, error) {
 }
 
 func (s *HardwareSensors) TurnOzoneOn() error {
-	slog.Info(">>TurnOzoneOn")
-	defer slog.Info("<<TurnOzoneOn")
+	slog.Debug(">>TurnOzoneOn")
+	defer slog.Debug("<<TurnOzoneOn")
 
-	slog.Info("ozone device", "config", s.config.OzoneDevice)
-
-	err := turnDeviceOn(&s.config.OzoneDevice)
-	if err != nil {
-		slog.Error("failed to turn ozone generator on", "error", err)
-		return err
-	}
-
-	deviceOn, err := isDeviceOn(&s.config.OzoneDevice)
-	slog.Info("ozone on", "err", err, "result", deviceOn)
-
-	return err
+	return turnDeviceOn(&s.config.OzoneDevice)
 }
 
 func (s *HardwareSensors) TurnOzoneOff() error {
-	slog.Info(">>TurnOzoneOff")
-	defer slog.Info("<<TurnOzoneOff")
+	slog.Debug(">>TurnOzoneOff")
+	defer slog.Debug("<<TurnOzoneOff")
 
 	return turnDeviceOff(&s.config.OzoneDevice)
 }
@@ -163,8 +152,8 @@ func isDeviceOn(device *DeviceConfig) (bool, error) {
 }
 
 func turnDeviceOn(device *DeviceConfig) error {
-	slog.Info(">>turnDeviceOn", "name", device.Name)
-	defer slog.Info("<<turnDeviceOn", "name", device.Name)
+	slog.Debug(">>turnDeviceOn", "name", device.Name)
+	defer slog.Debug("<<turnDeviceOn", "name", device.Name)
 
 	if err := rpio.Open(); err != nil {
 		return err
@@ -182,10 +171,8 @@ func turnDeviceOn(device *DeviceConfig) error {
 
 	// if the device is normally on, that means the pin is low when it is on
 	if device.NormallyOn {
-		slog.Info("setting pin low")
 		pin.Low()
 	} else {
-		slog.Info("setting pin high")
 		pin.High()
 	}
 
