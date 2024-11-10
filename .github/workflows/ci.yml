@@ -64,7 +64,7 @@ jobs:
 
       - name: Move Config file to /etc/plunger-server
         run: |
-          sudo mkdir /etc/plunger-server
+          sudo mkdir -p /etc/plunger-server
           sudo cp config_template.json /etc/plunger-server/config.json
           sudo chown brander:brander /etc/plunger-server/config.json
           sudo chmod 664 /etc/plunger-server/config.json
