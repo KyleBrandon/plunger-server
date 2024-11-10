@@ -31,6 +31,7 @@ func main() {
 	}
 
 	defer config.dbConnection.Close()
+	defer config.LogFile.Close()
 
 	mux := http.NewServeMux()
 

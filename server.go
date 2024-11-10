@@ -34,6 +34,7 @@ type serverConfig struct {
 	ConfigFileLocation string
 	Logger             *slog.Logger
 	LoggerLevel        *slog.LevelVar
+	LogFile            *os.File
 
 	Sensors        sensor.Sensors
 	Queries        *database.Queries
@@ -82,7 +83,6 @@ func (sc *serverConfig) configureLogger() {
 		os.Exit(1)
 	}
 
-	defer logFile.Close()
 	currentLevel := new(slog.LevelVar)
 	currentLevel.Set(DefaultLogLevel)
 
@@ -92,6 +92,7 @@ func (sc *serverConfig) configureLogger() {
 
 	sc.Logger = logger
 	sc.LoggerLevel = currentLevel
+	sc.LogFile = logFile
 }
 
 func (sc *serverConfig) loadConfiguration() {
