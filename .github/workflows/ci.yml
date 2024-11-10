@@ -61,8 +61,19 @@ jobs:
         run: |
           sudo mv ./plunger-server /usr/local/bin/plunger-server
           sudo chmod +x /usr/local/bin/plunger-server
+
+      - name: Move Config file to /etc/plunger-server
+        run: |
           sudo mkdir /etc/plunger-server
           sudo cp config_template.json /etc/plunger-server/config.json
+          sudo chown brander:brander /etc/plunger-server/config.json
+          sudo chmod 664 /etc/plunger-server/config.json
+
+      - name: Ensure Log File Exists and Set Permissions
+        run: |
+          sudo touch /var/log/plunger-server.log
+          sudo chown brander:brander /var/log/plunger-server.log
+          sudo chmod 664 /var/log/plunger-server.log
 
       # Create or Update Systemd Service
       - name: Create or Update Systemd Service
@@ -80,6 +91,8 @@ jobs:
           Restart=always
           User=brander
           WorkingDirectory=/usr/local/bin
+          StandardOutput=append:/var/log/plunger-server.log
+          StandardError=append:/var/log/plunger-server.log
 
           [Install]
           WantedBy=multi-user.target" | sudo tee /etc/systemd/system/plunger-server.service
