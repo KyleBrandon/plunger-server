@@ -13,3 +13,5 @@ fi
 
 # Run the main application
 exec /app/plunger-server "$@"
+
+/home/brander/workspaces/actions-runner/_work/plunger-server/plunger-server

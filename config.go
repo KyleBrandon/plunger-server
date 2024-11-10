@@ -3,10 +3,13 @@ package main
 import (
 	"encoding/json"
 	"io"
+	"log/slog"
 	"os"
 
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 )
+
+const DefaultLogLevel = slog.LevelInfo
 
 type Config struct {
 	Devices              []sensor.DeviceConfig `json:"devices"`
@@ -14,9 +17,8 @@ type Config struct {
 	OriginPatterns       []string              `json:"origin_patterns"`
 }
 
-func LoadConfigFile(filename string) (Config, error) {
+func LoadConfigSettings(filename string) (Config, error) {
 	var config Config
-
 	file, err := os.Open(filename)
 	if err != nil {
 		return config, err

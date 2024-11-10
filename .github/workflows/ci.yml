@@ -61,8 +61,8 @@ jobs:
         run: |
           sudo mv ./plunger-server /usr/local/bin/plunger-server
           sudo chmod +x /usr/local/bin/plunger-server
-          sudo mkdir /usr/local/bin/config
-          sudo cp config_template.json /usr/local/bin/config
+          sudo mkdir /etc/plunger-server
+          sudo cp config_template.json /etc/plunger-server/config.json
 
       # Create or Update Systemd Service
       - name: Create or Update Systemd Service
@@ -72,9 +72,11 @@ jobs:
           After=network.target
 
           [Service]
-          ExecStart=/usr/local/bin/plunger-server
+          ExecStart=/usr/local/bin/plunger-server 
           Environment=DATABASE_URL=${{ secrets.DATABASE_URL }}
           Environment=PORT=${{ secrets.PORT }}
+          Environment=LOG_FILE_LOCATION=/var/log/plunger-server.log
+          Environment=CONFIG_FILE_LOCATION=/etc/plunger-server/config.json
           Restart=always
           User=brander
           WorkingDirectory=/usr/local/bin

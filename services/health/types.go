@@ -6,7 +6,7 @@ import (
 )
 
 type Handler struct {
-	logger *slog.Logger
-	level  slog.Level
-	mu     sync.RWMutex
+	logger   *slog.Logger
+	levelVar *slog.LevelVar
+	mu       sync.RWMutex
 }
