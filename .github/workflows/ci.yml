@@ -55,18 +55,41 @@ jobs:
 
       - name: Build Go Webserver
         run: |
-          mkdir ./config
-          cp config_template.json ./config/config.json
           go build -o ./plunger-server
 
-      - name: Stop any running instance
+      - name: Move Binary to System Location
         run: |
-          pkill -f plunger-server || echo "No running instance to stop"
+          sudo mv ./plunger-server /usr/local/bin/plunger-server
+          sudo chmod +x /usr/local/bin/plunger-server
+          sudo mkdir /usr/local/bin/config
+          sudo cp config_template.json /usr/local/bin/config
 
-      - name: Run Plunger Server
-        env:
-          DATABASE_URL: ${{secrets.DATABASE_URL}}
-          PORT: ${{secrets.PORT}}
-
+      # Create or Update Systemd Service
+      - name: Create or Update Systemd Service
         run: |
-          nohup ./plunger-server > server.log 2>&1 &
+          echo "[Unit]
+          Description=Plunger Server
+          After=network.target
+
+          [Service]
+          ExecStart=/usr/local/bin/plunger-server
+          Environment=DATABASE_URL=${{ secrets.DATABASE_URL }}
+          Environment=PORT=${{ secrets.PORT }}
+          Restart=always
+          User=brander
+          WorkingDirectory=/usr/local/bin
+
+          [Install]
+          WantedBy=multi-user.target" | sudo tee /etc/systemd/system/plunger-server.service
+
+      # Restart the service
+      - name: Restart Plunger Server Service
+        run: |
+          sudo systemctl daemon-reload
+          sudo systemctl enable plunger-server
+          sudo systemctl restart plunger-server
+
+      # Check service status
+      - name: Check Service Status
+        run: |
+          sudo systemctl status plunger-server
