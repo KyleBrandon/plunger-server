@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -79,7 +78,8 @@ func initializeServerConfig() (serverConfig, error) {
 func (sc *serverConfig) configureLogger() {
 	logFile, err := os.OpenFile(sc.LogFileLocation, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Fatalf("Failed to open log file: %v", err)
+		slog.Warn("Failed to open log file: %v", "error", err)
+		os.Exit(1)
 	}
 
 	defer logFile.Close()
