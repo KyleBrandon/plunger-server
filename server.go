@@ -10,7 +10,6 @@ import (
 	"os"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
-	"github.com/KyleBrandon/plunger-server/internal/jobs"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/joho/godotenv"
 )
@@ -39,7 +38,6 @@ type serverConfig struct {
 	Sensors        sensor.Sensors
 	Queries        *database.Queries
 	dbConnection   *sql.DB
-	JobManager     jobs.JobManager
 	OriginPatterns []string
 }
 
@@ -71,7 +69,6 @@ func initializeServerConfig() (serverConfig, error) {
 	sc.Sensors = sensors
 	sc.OriginPatterns = config.OriginPatterns
 	sc.openDatabase()
-	sc.JobManager = jobs.NewJobConfig(sc.Queries, sensors)
 
 	return sc, nil
 }
