@@ -28,18 +28,6 @@ type Filter struct {
 	RemindAt  time.Time
 }
 
-type Job struct {
-	ID              uuid.UUID
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	JobType         int32
-	Status          int32
-	StartTime       time.Time
-	EndTime         time.Time
-	Result          sql.NullString
-	CancelRequested bool
-}
-
 type Leak struct {
 	ID         uuid.UUID
 	CreatedAt  time.Time
