@@ -67,52 +67,47 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 
 		case <-ticker.C:
 
-			roomTemp, roomTempError, waterTemp, waterTempError := h.getRecentTemperatures(ctx)
-			leakError := ""
+			// create a slice for any system messages
+			messages := make([]SystemMessage, 0)
+
+			roomTemp, waterTemp, tempMessages := h.getRecentTemperatures(ctx)
+
+			messages = append(messages, tempMessages...)
+
 			leakDetected, err := h.sensors.IsLeakPresent()
 			if err != nil {
-				leakError = err.Error()
+				messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
 			}
 
-			pumpError := ""
 			pumpIsOn, err := h.sensors.IsPumpOn()
 			if err != nil {
-				pumpError = err.Error()
+				messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
 			}
 
-			plungeError := ""
 			ps, err := h.buildPlungeStatus(ctx, roomTemp, waterTemp)
 			if err != nil {
-				plungeError = err.Error()
+				messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
 			}
 
-			ozoneError := ""
 			os, err := h.buildOzoneStatus(ctx)
 			if err != nil {
-				ozoneError = err.Error()
+				messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
 			}
 
-			filterError := ""
 			fs, err := h.buildFilterStatus(ctx)
 			if err != nil {
-				filterError = err.Error()
+				messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
 			}
 
 			status := SystemStatus{
-				PlungeStatus:   ps,
-				PlungeError:    plungeError,
-				OzoneStatus:    os,
-				OzoneError:     ozoneError,
-				WaterTemp:      waterTemp,
-				WaterTempError: waterTempError,
-				RoomTemp:       roomTemp,
-				RoomTempError:  roomTempError,
-				LeakDetected:   leakDetected,
-				LeakError:      leakError,
-				PumpOn:         pumpIsOn,
-				PumpError:      pumpError,
-				FilterStatus:   fs,
-				FilterError:    filterError,
+				Messages:     messages,
+				PlungeStatus: ps,
+				OzoneStatus:  os,
+				WaterTemp:    waterTemp,
+				RoomTemp:     roomTemp,
+				LeakDetected: leakDetected,
+				PumpOn:       pumpIsOn,
+				FilterStatus: fs,
 			}
 
 			err = wsjson.Write(ctx, c, status)
@@ -248,36 +243,34 @@ func (h *Handler) buildFilterStatus(ctx context.Context) (FilterStatus, error) {
 	return fs, nil
 }
 
-func (h *Handler) getRecentTemperatures(ctx context.Context) (float64, string, float64, string) {
+func (h *Handler) getRecentTemperatures(ctx context.Context) (float64, float64, []SystemMessage) {
+	messages := make([]SystemMessage, 0)
 	roomTemp := 0.0
-	roomTempError := ""
 	waterTemp := 0.0
-	waterTempError := ""
 
 	temperature, err := h.store.FindMostRecentTemperatures(ctx)
-	// if the room temperature was read successfully, convert it into a float
-	if err == nil && temperature.RoomTemp.Valid {
-		roomTemp, err = strconv.ParseFloat(temperature.RoomTemp.String, 64)
+	if err != nil {
+		messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
+		return roomTemp, waterTemp, messages
 	}
 
-	// if we failed to read or conver the room temperature set it to a default and set an error message
-	if err != nil || !temperature.RoomTemp.Valid {
-		roomTemp = 0.0
-		roomTempError = "No current room temperature"
+	// if the room temperature was read successfully, convert it into a float
+	if temperature.RoomTemp.Valid {
+		roomTemp, err = strconv.ParseFloat(temperature.RoomTemp.String, 64)
+		if err != nil {
+			messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
+		}
 	}
 
 	// if the water temperature was read successfully, convert it into a float
-	if err == nil && temperature.WaterTemp.Valid {
+	if temperature.WaterTemp.Valid {
 		waterTemp, err = strconv.ParseFloat(temperature.WaterTemp.String, 64)
+		if err != nil {
+			messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
+		}
 	}
 
-	// if we failed to read or conver the room temperature set it to a default and set an error message
-	if err != nil || !temperature.WaterTemp.Valid {
-		waterTemp = 0.0
-		waterTempError = "No current water temperature"
-	}
-
-	return roomTemp, roomTempError, waterTemp, waterTempError
+	return roomTemp, waterTemp, messages
 }
 
 // Update the temperatures
