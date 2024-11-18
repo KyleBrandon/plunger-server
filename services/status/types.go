@@ -9,11 +9,6 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 )
 
-const (
-	MESSAGETYPE_ALERT string = "alert"
-	MESSAGETYPE_ERROR string = "error"
-)
-
 type (
 	OzoneStatus struct {
 		Running     bool      `json:"running"`
@@ -45,20 +40,16 @@ type (
 		ChangeDue bool      `json:"change_due"`
 	}
 
-	SystemMessage struct {
-		Type    string `json:"type"`
-		Message string `json:"message"`
-	}
-
 	SystemStatus struct {
-		Messages     []SystemMessage `json:"messages"`
-		WaterTemp    float64         `json:"water_temp"`
-		RoomTemp     float64         `json:"room_temp"`
-		LeakDetected bool            `json:"leak_detected"`
-		PumpOn       bool            `json:"pump_on"`
-		PlungeStatus PlungeStatus    `json:"plunge"`
-		OzoneStatus  OzoneStatus     `json:"ozone"`
-		FilterStatus FilterStatus    `json:"filter"`
+		AlertMessages []string     `json:"alert_messages"`
+		ErrorMessages []string     `json:"error_messages"`
+		WaterTemp     float64      `json:"water_temp"`
+		RoomTemp      float64      `json:"room_temp"`
+		LeakDetected  bool         `json:"leak_detected"`
+		PumpOn        bool         `json:"pump_on"`
+		PlungeStatus  PlungeStatus `json:"plunge"`
+		OzoneStatus   OzoneStatus  `json:"ozone"`
+		FilterStatus  FilterStatus `json:"filter"`
 	}
 
 	PlungeState struct {

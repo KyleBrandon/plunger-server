@@ -68,46 +68,46 @@ func (h *Handler) monitorPlunge(ctx context.Context, c *websocket.Conn) {
 		case <-ticker.C:
 
 			// create a slice for any system messages
-			messages := make([]SystemMessage, 0)
+			errorMessages := make([]string, 0)
 
 			roomTemp, waterTemp, tempMessages := h.getRecentTemperatures(ctx)
 
-			messages = append(messages, tempMessages...)
+			errorMessages = append(errorMessages, tempMessages...)
 
 			leakDetected, err := h.sensors.IsLeakPresent()
 			if err != nil {
-				messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
+				errorMessages = append(errorMessages, err.Error())
 			}
 
 			pumpIsOn, err := h.sensors.IsPumpOn()
 			if err != nil {
-				messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
+				errorMessages = append(errorMessages, err.Error())
 			}
 
 			ps, err := h.buildPlungeStatus(ctx, roomTemp, waterTemp)
 			if err != nil {
-				messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
+				errorMessages = append(errorMessages, err.Error())
 			}
 
 			os, err := h.buildOzoneStatus(ctx)
 			if err != nil {
-				messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
+				errorMessages = append(errorMessages, err.Error())
 			}
 
 			fs, err := h.buildFilterStatus(ctx)
 			if err != nil {
-				messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
+				errorMessages = append(errorMessages, err.Error())
 			}
 
 			status := SystemStatus{
-				Messages:     messages,
-				PlungeStatus: ps,
-				OzoneStatus:  os,
-				WaterTemp:    waterTemp,
-				RoomTemp:     roomTemp,
-				LeakDetected: leakDetected,
-				PumpOn:       pumpIsOn,
-				FilterStatus: fs,
+				ErrorMessages: errorMessages,
+				PlungeStatus:  ps,
+				OzoneStatus:   os,
+				WaterTemp:     waterTemp,
+				RoomTemp:      roomTemp,
+				LeakDetected:  leakDetected,
+				PumpOn:        pumpIsOn,
+				FilterStatus:  fs,
 			}
 
 			err = wsjson.Write(ctx, c, status)
@@ -243,14 +243,14 @@ func (h *Handler) buildFilterStatus(ctx context.Context) (FilterStatus, error) {
 	return fs, nil
 }
 
-func (h *Handler) getRecentTemperatures(ctx context.Context) (float64, float64, []SystemMessage) {
-	messages := make([]SystemMessage, 0)
+func (h *Handler) getRecentTemperatures(ctx context.Context) (float64, float64, []string) {
+	messages := make([]string, 0)
 	roomTemp := 0.0
 	waterTemp := 0.0
 
 	temperature, err := h.store.FindMostRecentTemperatures(ctx)
 	if err != nil {
-		messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
+		messages = append(messages, err.Error())
 		return roomTemp, waterTemp, messages
 	}
 
@@ -258,7 +258,7 @@ func (h *Handler) getRecentTemperatures(ctx context.Context) (float64, float64, 
 	if temperature.RoomTemp.Valid {
 		roomTemp, err = strconv.ParseFloat(temperature.RoomTemp.String, 64)
 		if err != nil {
-			messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
+			messages = append(messages, err.Error())
 		}
 	}
 
@@ -266,7 +266,7 @@ func (h *Handler) getRecentTemperatures(ctx context.Context) (float64, float64, 
 	if temperature.WaterTemp.Valid {
 		waterTemp, err = strconv.ParseFloat(temperature.WaterTemp.String, 64)
 		if err != nil {
-			messages = append(messages, SystemMessage{Type: MESSAGETYPE_ERROR, Message: err.Error()})
+			messages = append(messages, err.Error())
 		}
 	}
 
