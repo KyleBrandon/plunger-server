@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
@@ -19,15 +20,22 @@ func NewHandler(store MonitorStore, sensors sensor.Sensors) *Handler {
 	}
 }
 
-func (h *Handler) StartMonitorRoutines(ctx context.Context) {
-	go h.monitorTemperatures(ctx)
-	go h.monitorOzone(ctx)
-	go h.monitorLeaks(ctx)
+func (h *Handler) StartMonitorRoutines(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	go h.monitorTemperatures(ctx, wg)
+
+	wg.Add(1)
+	go h.monitorOzone(ctx, wg)
+
+	wg.Add(1)
+	go h.monitorLeaks(ctx, wg)
 }
 
-func (h *Handler) monitorTemperatures(ctx context.Context) {
+func (h *Handler) monitorTemperatures(ctx context.Context, wg *sync.WaitGroup) {
 	slog.Debug(">>monitorTemperatures")
 	defer slog.Debug("<<monitorTemperatures")
+
+	defer wg.Done()
 
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -74,9 +82,12 @@ func (h *Handler) monitorTemperatures(ctx context.Context) {
 	}
 }
 
-func (h *Handler) monitorOzone(ctx context.Context) {
+func (h *Handler) monitorOzone(ctx context.Context, wg *sync.WaitGroup) {
 	slog.Debug(">>monitorOzone")
 	defer slog.Debug("<<monitorOzone")
+
+	defer wg.Done()
+
 	// start and stop with the ozone off
 	h.sensors.TurnOzoneOff()
 	defer h.sensors.TurnOzoneOff()
@@ -168,9 +179,12 @@ func (h *Handler) updateOzoneStatus(ctx context.Context, id uuid.UUID, statusMes
 	}
 }
 
-func (h *Handler) monitorLeaks(ctx context.Context) {
+func (h *Handler) monitorLeaks(ctx context.Context, wg *sync.WaitGroup) {
 	slog.Debug(">>monitorLeaks")
 	defer slog.Debug("<<monitorLeaks")
+
+	defer wg.Done()
+
 	// take an initial reading of the leak sensor so we can detect transitions from true/false
 	prevLeakReading, err := h.sensors.IsLeakPresent()
 	if err != nil {

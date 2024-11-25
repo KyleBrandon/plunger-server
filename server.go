@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"flag"
 	"fmt"
@@ -128,7 +127,7 @@ func (sc *serverConfig) loadConfiguration() {
 	sc.UseMockSensor = mockSensor
 }
 
-func (config *serverConfig) runServer(mux *http.ServeMux, cancelMonitors context.CancelFunc) {
+func (config *serverConfig) runServer(mux *http.ServeMux) {
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),
 		Handler: mux,
@@ -137,8 +136,6 @@ func (config *serverConfig) runServer(mux *http.ServeMux, cancelMonitors context
 	slog.Info("Starting server", "port", config.ServerPort)
 	if err := server.ListenAndServe(); err != nil {
 		slog.Error("Server failed", "error", err)
-		// TODO: we should wait for the monitors to stop
-		cancelMonitors()
 	}
 }
 

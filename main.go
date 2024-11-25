@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/KyleBrandon/plunger-server/services/filters"
 	"github.com/KyleBrandon/plunger-server/services/health"
@@ -35,10 +36,12 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	monitorHandler := monitor.NewHandler(config.Queries, config.Sensors)
-	ctx, cancelMonitors := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	monitorHandler.StartMonitorRoutines(ctx)
+	monitorHandler := monitor.NewHandler(config.Queries, config.Sensors)
+	monitorHandler.StartMonitorRoutines(ctx, &wg)
 
 	healthHandler := health.NewHandler(config.LoggerLevel, config.Logger)
 	healthHandler.RegisterRoutes(mux)
@@ -70,5 +73,12 @@ func main() {
 	filterHandler := filters.NewHandler(config.Queries)
 	filterHandler.RegisterRoutes(mux)
 
-	config.runServer(mux, cancelMonitors)
+	// start the server
+	config.runServer(mux)
+
+	// If the server stopped, cancel the monitor go routines
+	cancel()
+
+	// wait until all go routines have exited
+	wg.Wait()
 }
