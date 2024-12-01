@@ -138,20 +138,9 @@ func (h *Handler) startOzoneGenerator(msync *MonitorSync, duration int) error {
 		slog.Info("Enter goroutine to monitor ozone")
 		defer slog.Info("Exit goroutine to monitor ozone")
 
-		for {
-			select {
-			case <-ozoneCtx.Done():
-				slog.Info("Ozone generator was stopped")
-				h.stopOzoneGenerator(msync)
-				return
-			}
-		}
-
-		// for range ozoneCtx.Done() {
-		// 	slog.Info("Ozone generator was stopped")
-		// 	h.stopOzoneGenerator(msync)
-		// 	return
-		// }
+		<-ozoneCtx.Done()
+		slog.Info("Ozone generator was stopped")
+		h.stopOzoneGenerator(msync)
 	}()
 
 	return nil
