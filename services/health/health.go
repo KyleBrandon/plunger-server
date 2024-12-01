@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/KyleBrandon/plunger-server/utils"
 )
@@ -78,7 +77,7 @@ func (h *Handler) handlerLoggerUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	level, err := parseLogLevel(request.LogLevel)
+	level, err := utils.ParseLogLevel(request.LogLevel)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, "Invalid log level", err)
 		return
@@ -87,21 +86,4 @@ func (h *Handler) handlerLoggerUpdate(w http.ResponseWriter, r *http.Request) {
 	h.levelVar.Set(level)
 
 	utils.RespondWithNoContent(w, http.StatusOK)
-}
-
-func parseLogLevel(logLevel string) (slog.Level, error) {
-	switch strings.ToLower(logLevel) {
-	case "debug":
-		return slog.LevelDebug, nil
-	case "info":
-		return slog.LevelInfo, nil
-	case "warn", "warning":
-		return slog.LevelWarn, nil
-	case "error":
-		return slog.LevelError, nil
-	case "fatal":
-		return slog.LevelError, nil // No fatal in slog, map to error.
-	default:
-		return slog.LevelInfo, fmt.Errorf("invalid log level: %s", logLevel)
-	}
 }

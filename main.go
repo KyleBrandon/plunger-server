@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"log/slog"
 	"net/http"
@@ -35,10 +34,10 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	monitorHandler := monitor.NewHandler(config.Queries, config.Sensors)
-	ctx, cancelMonitors := context.WithCancel(context.Background())
+	msync := monitor.InitializeMonitorSync()
 
-	monitorHandler.StartMonitorRoutines(ctx)
+	monitorHandler := monitor.NewHandler(msync, config.Queries, config.Sensors)
+	monitorHandler.StartMonitorRoutines(msync)
 
 	healthHandler := health.NewHandler(config.LoggerLevel, config.Logger)
 	healthHandler.RegisterRoutes(mux)
@@ -49,7 +48,7 @@ func main() {
 	userHandler := users.NewHandler(config.Queries)
 	userHandler.RegisterRoutes(mux)
 
-	ozoneHandler := ozone.NewHandler(config.Queries, config.Sensors)
+	ozoneHandler := ozone.NewHandler(config.Queries, config.Sensors, msync)
 	ozoneHandler.RegisterRoutes(mux)
 
 	leakHandler := leaks.NewHandler(config.Queries)
@@ -70,5 +69,8 @@ func main() {
 	filterHandler := filters.NewHandler(config.Queries)
 	filterHandler.RegisterRoutes(mux)
 
-	config.runServer(mux, cancelMonitors)
+	// start the server
+	config.runServer(mux)
+
+	msync.CancelAndWait()
 }

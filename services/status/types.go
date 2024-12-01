@@ -41,20 +41,15 @@ type (
 	}
 
 	SystemStatus struct {
-		WaterTemp      float64      `json:"water_temp"`
-		WaterTempError string       `json:"water_temp_error"`
-		RoomTemp       float64      `json:"room_temp"`
-		RoomTempError  string       `json:"room_temp_error"`
-		LeakDetected   bool         `json:"leak_detected"`
-		LeakError      string       `json:"leak_status_error"`
-		PumpOn         bool         `json:"pump_on"`
-		PumpError      string       `json:"pump_error"`
-		PlungeStatus   PlungeStatus `json:"plunge"`
-		PlungeError    string       `json:"plunge_status_error"`
-		OzoneStatus    OzoneStatus  `json:"ozone"`
-		OzoneError     string       `json:"ozone_status_error"`
-		FilterStatus   FilterStatus `json:"filter"`
-		FilterError    string       `json:"filter_status_error"`
+		AlertMessages []string     `json:"alert_messages"`
+		ErrorMessages []string     `json:"error_messages"`
+		WaterTemp     float64      `json:"water_temp"`
+		RoomTemp      float64      `json:"room_temp"`
+		LeakDetected  bool         `json:"leak_detected"`
+		PumpOn        bool         `json:"pump_on"`
+		PlungeStatus  PlungeStatus `json:"plunge"`
+		OzoneStatus   OzoneStatus  `json:"ozone"`
+		FilterStatus  FilterStatus `json:"filter"`
 	}
 
 	PlungeState struct {

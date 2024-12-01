@@ -6,10 +6,11 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
+	"github.com/KyleBrandon/plunger-server/services/monitor"
 	"github.com/google/uuid"
 )
 
-const DefaultOzoneDurationMinutes = "120"
+const DefaultOzoneDurationMinutes = "60"
 
 type (
 	OzoneResult struct {
@@ -24,6 +25,7 @@ type (
 	Handler struct {
 		store  OzoneStore
 		sensor sensor.Sensors
+		msync  *monitor.MonitorSync
 	}
 
 	OzoneStore interface {

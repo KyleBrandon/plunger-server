@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"flag"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
+	"github.com/KyleBrandon/plunger-server/utils"
 	"github.com/joho/godotenv"
 )
 
@@ -23,6 +23,7 @@ const (
 // Used by "flag" to read command line argument
 var (
 	mockSensor bool
+	logLevel   string
 )
 
 type serverConfig struct {
@@ -81,7 +82,14 @@ func (sc *serverConfig) configureLogger() {
 	}
 
 	currentLevel := new(slog.LevelVar)
-	currentLevel.Set(DefaultLogLevel)
+
+	level, err := utils.ParseLogLevel(logLevel)
+	if err != nil {
+		slog.Error("Failed to parse the log level, setting to DefaultLogLevel", "error", err, "log_level", logLevel)
+		level = DefaultLogLevel
+	}
+
+	currentLevel.Set(level)
 
 	logger := slog.New(slog.NewTextHandler(logFile,
 		&slog.HandlerOptions{Level: currentLevel}))
@@ -119,7 +127,7 @@ func (sc *serverConfig) loadConfiguration() {
 	sc.UseMockSensor = mockSensor
 }
 
-func (config *serverConfig) runServer(mux *http.ServeMux, cancelMonitors context.CancelFunc) {
+func (config *serverConfig) runServer(mux *http.ServeMux) {
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),
 		Handler: mux,
@@ -128,8 +136,6 @@ func (config *serverConfig) runServer(mux *http.ServeMux, cancelMonitors context
 	slog.Info("Starting server", "port", config.ServerPort)
 	if err := server.ListenAndServe(); err != nil {
 		slog.Error("Server failed", "error", err)
-		// TODO: we should wait for the monitors to stop
-		cancelMonitors()
 	}
 }
 
@@ -146,4 +152,5 @@ func (config *serverConfig) openDatabase() {
 func init() {
 	// initialize the mock sensor commandline flag
 	flag.BoolVar(&mockSensor, "use_mock_sensor", false, "Indicate if we should use a mock sensor for the server instance.")
+	flag.StringVar(&logLevel, "log_level", DefaultLogLevel.String(), "The log level to start the server at")
 }
