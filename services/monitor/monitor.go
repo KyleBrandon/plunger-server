@@ -59,6 +59,7 @@ func (h *Handler) monitorOzone(msync *MonitorSync) {
 	h.sensors.TurnOzoneOff()
 	defer h.sensors.TurnOzoneOff()
 
+	slog.Info("monitorOzone: wait for action or done")
 	for {
 		select {
 		case <-msync.ctx.Done():
@@ -72,13 +73,14 @@ func (h *Handler) monitorOzone(msync *MonitorSync) {
 			}
 
 			// process notification from ozone Handler
-			slog.Info("Ozone notification received", "notification", task.Action)
 			switch task.Action {
 			case OZONEACTION_START:
+				slog.Info("OZONEACTION_START")
 				h.startOzoneGenerator(msync, task.Duration)
 
 			case OZONEACTION_STOP:
 				// cancel the ozone generator
+				slog.Info("OZONEACTION_STOP")
 				msync.Lock()
 				if msync.OzoneRunning {
 					msync.OzoneCancel()
@@ -89,7 +91,7 @@ func (h *Handler) monitorOzone(msync *MonitorSync) {
 	}
 }
 
-func (h *Handler) startOzoneGenerator(msync *MonitorSync, duration time.Duration) error {
+func (h *Handler) startOzoneGenerator(msync *MonitorSync, duration int) error {
 	slog.Info(">>startOzoneGenerator")
 	defer slog.Info("<<startOzoneGenerator")
 
@@ -99,6 +101,7 @@ func (h *Handler) startOzoneGenerator(msync *MonitorSync, duration time.Duration
 	// is the ozone generator already running?
 	if msync.OzoneRunning {
 		// TODO: deal with this better
+		slog.Error("ozone is already running")
 		return errors.New("ozone already running")
 	}
 
@@ -126,7 +129,7 @@ func (h *Handler) startOzoneGenerator(msync *MonitorSync, duration time.Duration
 	}
 
 	// create a context for the ozone goroutine with a hard timeout
-	ozoneCtx, cancel := context.WithTimeout(msync.ctx, duration)
+	ozoneCtx, cancel := context.WithTimeout(msync.ctx, time.Duration(duration)*time.Minute)
 	msync.OzoneCancel = cancel
 	msync.OzoneRunning = true
 
@@ -150,9 +153,14 @@ func (h *Handler) stopOzoneGenerator(msync *MonitorSync) error {
 	// turn ozone off no matter what
 	err := h.sensors.TurnOzoneOff()
 	if err != nil {
+		// TODO: Notify user!!!
 		h.setOzoneErrorMessage(msync.ctx, "failed to turn off ozone generator", err)
 		return err
 	}
+
+	msync.Lock()
+	msync.OzoneRunning = false
+	msync.Unlock()
 
 	ozone, err := h.store.GetLatestOzoneEntry(msync.ctx)
 	if err != nil {
@@ -166,10 +174,6 @@ func (h *Handler) stopOzoneGenerator(msync *MonitorSync) error {
 		slog.Error("failed to update the database with the ozone stop")
 		return err
 	}
-
-	msync.Lock()
-	msync.OzoneRunning = false
-	msync.Unlock()
 
 	return nil
 }

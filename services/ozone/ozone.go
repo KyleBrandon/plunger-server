@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
@@ -84,8 +83,7 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ozoneDuration := time.Duration(duration) * time.Minute
-	h.msync.OzoneCh <- monitor.OzoneTask{Action: monitor.OZONEACTION_START, Duration: ozoneDuration}
+	h.msync.OzoneCh <- monitor.OzoneTask{Action: monitor.OZONEACTION_START, Duration: duration}
 
 	utils.RespondWithNoContent(w, http.StatusCreated)
 }

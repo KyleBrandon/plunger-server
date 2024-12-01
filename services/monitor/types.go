@@ -20,7 +20,7 @@ type (
 
 	OzoneTask struct {
 		Action   OzoneAction
-		Duration time.Duration
+		Duration int
 	}
 
 	MonitorSync struct {
