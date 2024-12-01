@@ -83,6 +83,7 @@ func (h *Handler) monitorOzone(msync *MonitorSync) {
 				slog.Info("OZONEACTION_STOP")
 				msync.Lock()
 				if msync.OzoneRunning {
+					slog.Info("cancel ozone")
 					msync.OzoneCancel()
 				}
 				msync.Unlock()
@@ -135,6 +136,7 @@ func (h *Handler) startOzoneGenerator(msync *MonitorSync, duration int) error {
 
 	go func() {
 		slog.Info("Enter goroutine to monitor ozone")
+		defer slog.Info("Exit goroutine to monitor ozone")
 
 		for range ozoneCtx.Done() {
 			slog.Info("Ozone generator was stopped")
