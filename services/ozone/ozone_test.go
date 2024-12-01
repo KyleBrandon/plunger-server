@@ -9,6 +9,7 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
+	"github.com/KyleBrandon/plunger-server/services/monitor"
 	"github.com/KyleBrandon/plunger-server/utils"
 	"github.com/google/uuid"
 )
@@ -17,7 +18,8 @@ func TestOzoneGet(t *testing.T) {
 	t.Run("Get ozone status expect no job running", func(t *testing.T) {
 		store := mockOzoneStore{}
 		sensors := mockSensors{}
-		h := NewHandler(&store, &sensors)
+		msync := monitor.InitializeMonitorSync()
+		h := NewHandler(&store, &sensors, msync)
 
 		store.SetError(errors.New("could not find any ozone job"))
 		rr := utils.TestRequest(t, http.MethodGet, "/v1/ozone", nil, h.handlerOzoneGet)
@@ -34,7 +36,8 @@ func TestOzoneGet(t *testing.T) {
 	t.Run("Get ozone status expect a job running", func(t *testing.T) {
 		store := mockOzoneStore{}
 		sensors := mockSensors{}
-		h := NewHandler(&store, &sensors)
+		msync := monitor.InitializeMonitorSync()
+		h := NewHandler(&store, &sensors, msync)
 
 		rr := utils.TestRequest(t, http.MethodGet, "/v1/ozone", nil, h.handlerOzoneGet)
 
@@ -47,55 +50,46 @@ func TestOzoneGet(t *testing.T) {
 		}
 	})
 
-	t.Run("Fail to start ozone job", func(t *testing.T) {
+	t.Run("Fail to start ozone, already running", func(t *testing.T) {
 		store := mockOzoneStore{}
+		store.entry.Running = true
 		sensors := mockSensors{}
-		h := NewHandler(&store, &sensors)
+		msync := monitor.InitializeMonitorSync()
+		h := NewHandler(&store, &sensors, msync)
 
-		store.SetError(errors.New("could not start the ozone timer"))
 		rr := utils.TestRequest(t, http.MethodPost, "/v1/ozone/start", nil, h.handlerOzoneStart)
 
-		if rr.Code != http.StatusInternalServerError {
-			t.Errorf("expected status code %d, got %d", http.StatusInternalServerError, rr.Code)
+		if rr.Code != http.StatusNotModified {
+			t.Errorf("expected status code %d, got %d", http.StatusNotModified, rr.Code)
 		}
 
-		e := *store.err
-		if !strings.Contains(rr.Body.String(), e.Error()) {
-			t.Errorf("expected message %s, got %s", e.Error(), rr.Body.String())
+		msg := "Ozone generator is already running"
+		if !strings.Contains(rr.Body.String(), msg) {
+			t.Errorf("expected message %s, got %s", msg, rr.Body.String())
 		}
 	})
 
 	t.Run("Succeed to start ozone job", func(t *testing.T) {
 		store := mockOzoneStore{}
 		sensors := mockSensors{}
-		h := NewHandler(&store, &sensors)
+		msync := monitor.InitializeMonitorSync()
+		h := NewHandler(&store, &sensors, msync)
+
+		go func() {
+			task, ok := <-msync.OzoneCh
+			if !ok {
+				t.Error("ozone channel was closed")
+			}
+
+			if task.Action != monitor.OZONEACTION_START {
+				t.Errorf("expectected task action to start ozone, received %v", task.Action)
+			}
+		}()
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v1/ozone/start", nil, h.handlerOzoneStart)
 
 		if rr.Code != http.StatusCreated {
 			t.Errorf("expected status code %d, got %d", http.StatusCreated, rr.Code)
-		}
-
-		if !strings.Contains(rr.Body.String(), "\"running\":true") {
-			t.Errorf("expected message %s, got %s", "\"running\":true", rr.Body.String())
-		}
-	})
-
-	t.Run("Fail to stop ozone job", func(t *testing.T) {
-		store := mockOzoneStore{}
-		sensors := mockSensors{}
-		h := NewHandler(&store, &sensors)
-
-		store.SetError(errors.New("could not find ozone job"))
-		rr := utils.TestRequest(t, http.MethodPost, "/v1/ozone/stop", nil, h.handlerOzoneStop)
-
-		if rr.Code != http.StatusNotModified {
-			t.Errorf("expected status code %d, got %d", http.StatusNotModified, rr.Code)
-		}
-
-		e := *store.err
-		if !strings.Contains(rr.Body.String(), e.Error()) {
-			t.Errorf("expected message %s, got %s", e.Error(), rr.Body.String())
 		}
 	})
 
@@ -103,7 +97,19 @@ func TestOzoneGet(t *testing.T) {
 		store := mockOzoneStore{}
 		sensors := mockSensors{}
 		store.entry.Running = true
-		h := NewHandler(&store, &sensors)
+		msync := monitor.InitializeMonitorSync()
+		h := NewHandler(&store, &sensors, msync)
+
+		go func() {
+			task, ok := <-msync.OzoneCh
+			if !ok {
+				t.Error("ozone channel was closed")
+			}
+
+			if task.Action != monitor.OZONEACTION_STOP {
+				t.Errorf("expectected task action to stop ozone, received %v", task.Action)
+			}
+		}()
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v1/ozone/stop", nil, h.handlerOzoneStop)
 
