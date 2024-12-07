@@ -17,9 +17,15 @@ COPY . .
 # Build the Go web server binary
 RUN go build -o /plunger-server
 
-
 # Stage 2: Create a minimal image for running the application
 FROM alpine:latest
+
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    && apt-get clean
+
+RUN ln -s /usr/bin/python3 /usr/bin/python
 
 # Accept build-time variables for DATABASE_URL and PORT
 ARG DATABASE_URL
