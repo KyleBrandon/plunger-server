@@ -17,7 +17,6 @@ COPY . .
 # Build the Go web server binary
 RUN go build -o /plunger-server
 
-
 # Stage 2: Create a minimal image for running the application
 FROM alpine:latest
 
