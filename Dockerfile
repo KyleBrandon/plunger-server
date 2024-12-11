@@ -20,6 +20,9 @@ RUN go build -o /plunger-server
 # Stage 2: Create a minimal image for running the application
 FROM alpine:latest
 
+# Add some default quality of life
+RUN apk add vim
+
 # Accept build-time variables for DATABASE_URL and PORT
 ARG DATABASE_URL
 ARG PORT

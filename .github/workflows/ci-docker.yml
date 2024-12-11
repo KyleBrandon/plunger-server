@@ -70,7 +70,7 @@ jobs:
       # Deploy Docker container
       - name: Run Docker Container
         run: |
-          docker run -d --privileged \
+          docker run -d \
             -v /sys/bus/w1/devices:/sys/bus/w1/devices \
             -v /sys/class/gpio:/sys/class/gpio \
             -v /dev/mem:/dev/mem \
