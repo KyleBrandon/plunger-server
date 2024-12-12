@@ -13,6 +13,7 @@ import (
 const findMostRecentTemperatures = `-- name: FindMostRecentTemperatures :one
 SELECT id, created_at, updated_at, water_temp, room_temp FROM temperatures
 ORDER BY created_at DESC
+LIMIT 1
 `
 
 func (q *Queries) FindMostRecentTemperatures(ctx context.Context) (Temperature, error) {
