@@ -76,5 +76,6 @@ jobs:
             -e DATABASE_URL=${{ secrets.DATABASE_URL }} \
             -e PORT=${{ secrets.PORT }} \
             -p ${{ secrets.PORT }}:${{ secrets.PORT }} \
+            -p 6060:6060 \
             -v config-volume:/app/config \
             kylebrandon/plunger-server:latest

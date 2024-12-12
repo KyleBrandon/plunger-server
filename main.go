@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -70,6 +71,10 @@ func main() {
 
 	filterHandler := filters.NewHandler(config.Queries)
 	filterHandler.RegisterRoutes(mux)
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	// start the server
 	config.runServer(mux)

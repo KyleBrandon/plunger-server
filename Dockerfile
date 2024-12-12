@@ -21,7 +21,7 @@ RUN go build -o /plunger-server
 FROM alpine:latest
 
 # Add some default quality of life
-RUN apk add vim
+RUN apk add vim curl
 
 # Accept build-time variables for DATABASE_URL and PORT
 ARG DATABASE_URL
@@ -43,6 +43,7 @@ RUN chmod +x /app/entrypoint.sh
 
 # Expose the port for the Go web server
 EXPOSE ${PORT}
+EXPOSE 6060
 
 # Run the binary and pass in the necessary environment variables
 ENTRYPOINT [ "/app/entrypoint.sh" ]
