@@ -21,7 +21,7 @@ RUN go build -o /plunger-server
 FROM alpine:latest
 
 # Add some default quality of life
-RUN apk add vim curl
+RUN apk add vim curl ufw grep
 
 # Accept build-time variables for DATABASE_URL and PORT
 ARG DATABASE_URL
