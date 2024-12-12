@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 
+	_ "net/http/pprof"
+
 	"github.com/KyleBrandon/plunger-server/services/filters"
 	"github.com/KyleBrandon/plunger-server/services/health"
 	"github.com/KyleBrandon/plunger-server/services/leaks"
