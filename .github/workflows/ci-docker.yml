@@ -55,6 +55,10 @@ jobs:
             --platform linux/arm/v7 \
             --build-arg DATABASE_URL=${{ secrets.DATABASE_URL }} \
             --build-arg PORT=${{ secrets.PORT }} \
+            --build-arg TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }} \
+            --build-arg TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }} \
+            --build-arg TWILIO_FROM_PHONE_NO=${{ secrets.TWILIO_FROM_PHONE_NO }} \
+            --build-arg TWILIO_TO_PHONE_NO=${{ secrets.TWILIO_TO_PHONE_NO }} \
             -t kylebrandon/plunger-server:latest .
 
   deploy:
@@ -75,6 +79,9 @@ jobs:
             --restart unless-stopped \
             -e DATABASE_URL=${{ secrets.DATABASE_URL }} \
             -e PORT=${{ secrets.PORT }} \
+            -e TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }} \
+            -e TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }} \
+            -e TWILIO_TO_PHONE_NO=${{ secrets.TWILIO_TO_PHONE_NO }} \
             -p ${{ secrets.PORT }}:${{ secrets.PORT }} \
             -p 6060:6060 \
             -v config-volume:/app/config \

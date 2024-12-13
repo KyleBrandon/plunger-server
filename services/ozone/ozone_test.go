@@ -18,7 +18,7 @@ func TestOzoneGet(t *testing.T) {
 	t.Run("Get ozone status expect no job running", func(t *testing.T) {
 		store := mockOzoneStore{}
 		sensors := mockSensors{}
-		msync := monitor.InitializeMonitorSync()
+		msync := monitor.InitializeMonitorContext()
 		h := NewHandler(&store, &sensors, msync)
 
 		store.SetError(errors.New("could not find any ozone job"))
@@ -36,7 +36,7 @@ func TestOzoneGet(t *testing.T) {
 	t.Run("Get ozone status expect a job running", func(t *testing.T) {
 		store := mockOzoneStore{}
 		sensors := mockSensors{}
-		msync := monitor.InitializeMonitorSync()
+		msync := monitor.InitializeMonitorContext()
 		h := NewHandler(&store, &sensors, msync)
 
 		rr := utils.TestRequest(t, http.MethodGet, "/v1/ozone", nil, h.handlerOzoneGet)
@@ -54,7 +54,7 @@ func TestOzoneGet(t *testing.T) {
 		store := mockOzoneStore{}
 		store.entry.Running = true
 		sensors := mockSensors{}
-		msync := monitor.InitializeMonitorSync()
+		msync := monitor.InitializeMonitorContext()
 		h := NewHandler(&store, &sensors, msync)
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v1/ozone/start", nil, h.handlerOzoneStart)
@@ -72,7 +72,7 @@ func TestOzoneGet(t *testing.T) {
 	t.Run("Succeed to start ozone job", func(t *testing.T) {
 		store := mockOzoneStore{}
 		sensors := mockSensors{}
-		msync := monitor.InitializeMonitorSync()
+		msync := monitor.InitializeMonitorContext()
 		h := NewHandler(&store, &sensors, msync)
 
 		go func() {
@@ -97,7 +97,7 @@ func TestOzoneGet(t *testing.T) {
 		store := mockOzoneStore{}
 		sensors := mockSensors{}
 		store.entry.Running = true
-		msync := monitor.InitializeMonitorSync()
+		msync := monitor.InitializeMonitorContext()
 		h := NewHandler(&store, &sensors, msync)
 
 		go func() {

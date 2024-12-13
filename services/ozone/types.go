@@ -25,7 +25,7 @@ type (
 	Handler struct {
 		store  OzoneStore
 		sensor sensor.Sensors
-		msync  *monitor.MonitorSync
+		mctx   *monitor.MonitorContext
 	}
 
 	OzoneStore interface {

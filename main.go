@@ -37,10 +37,7 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	msync := monitor.InitializeMonitorSync()
-
-	monitorHandler := monitor.NewHandler(msync, config.Queries, config.Sensors)
-	monitorHandler.StartMonitorRoutines(msync)
+	mctx := monitor.InitializeMonitorContext(config.Notifier, config.Queries, config.Sensors)
 
 	healthHandler := health.NewHandler(config.LoggerLevel, config.Logger)
 	healthHandler.RegisterRoutes(mux)
@@ -51,7 +48,7 @@ func main() {
 	userHandler := users.NewHandler(config.Queries)
 	userHandler.RegisterRoutes(mux)
 
-	ozoneHandler := ozone.NewHandler(config.Queries, config.Sensors, msync)
+	ozoneHandler := ozone.NewHandler(config.Queries, config.Sensors, mctx)
 	ozoneHandler.RegisterRoutes(mux)
 
 	leakHandler := leaks.NewHandler(config.Queries)
@@ -79,5 +76,5 @@ func main() {
 	// start the server
 	config.runServer(mux)
 
-	msync.CancelAndWait()
+	mctx.CancelAndWait()
 }
