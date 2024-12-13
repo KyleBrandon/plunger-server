@@ -349,13 +349,17 @@ func (mctx *MonitorContext) monitorNotifications() {
 			slog.Info(task.Message)
 
 			// Send the SMS
-			err := mctx.Notifier.Send(
-				context.Background(),
-				"Plunger Notification",
-				task.Message,
-			)
-			if err != nil {
-				slog.Error("failed to send message", "error", err, "message", task.Message)
+			if mctx.Notifier != nil {
+				err := mctx.Notifier.Send(
+					context.Background(),
+					"Plunger Notification",
+					task.Message,
+				)
+				if err != nil {
+					slog.Error("failed to send message", "error", err, "message", task.Message)
+				}
+			} else {
+				slog.Warn("Notifier is not registered for notifications")
 			}
 
 		}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
@@ -18,8 +19,8 @@ func TestOzoneGet(t *testing.T) {
 	t.Run("Get ozone status expect no job running", func(t *testing.T) {
 		store := mockOzoneStore{}
 		sensors := mockSensors{}
-		msync := monitor.InitializeMonitorContext()
-		h := NewHandler(&store, &sensors, msync)
+		mctx := monitor.InitializeMonitorContext(nil, &store, &sensors)
+		h := NewHandler(&store, &sensors, mctx)
 
 		store.SetError(errors.New("could not find any ozone job"))
 		rr := utils.TestRequest(t, http.MethodGet, "/v1/ozone", nil, h.handlerOzoneGet)
@@ -36,8 +37,8 @@ func TestOzoneGet(t *testing.T) {
 	t.Run("Get ozone status expect a job running", func(t *testing.T) {
 		store := mockOzoneStore{}
 		sensors := mockSensors{}
-		msync := monitor.InitializeMonitorContext()
-		h := NewHandler(&store, &sensors, msync)
+		mctx := monitor.InitializeMonitorContext(nil, &store, &sensors)
+		h := NewHandler(&store, &sensors, mctx)
 
 		rr := utils.TestRequest(t, http.MethodGet, "/v1/ozone", nil, h.handlerOzoneGet)
 
@@ -54,8 +55,8 @@ func TestOzoneGet(t *testing.T) {
 		store := mockOzoneStore{}
 		store.entry.Running = true
 		sensors := mockSensors{}
-		msync := monitor.InitializeMonitorContext()
-		h := NewHandler(&store, &sensors, msync)
+		mctx := monitor.InitializeMonitorContext(nil, &store, &sensors)
+		h := NewHandler(&store, &sensors, mctx)
 
 		rr := utils.TestRequest(t, http.MethodPost, "/v1/ozone/start", nil, h.handlerOzoneStart)
 
@@ -72,11 +73,11 @@ func TestOzoneGet(t *testing.T) {
 	t.Run("Succeed to start ozone job", func(t *testing.T) {
 		store := mockOzoneStore{}
 		sensors := mockSensors{}
-		msync := monitor.InitializeMonitorContext()
-		h := NewHandler(&store, &sensors, msync)
+		mctx := monitor.InitializeMonitorContext(nil, &store, &sensors)
+		h := NewHandler(&store, &sensors, mctx)
 
 		go func() {
-			task, ok := <-msync.OzoneCh
+			task, ok := <-mctx.OzoneCh
 			if !ok {
 				t.Error("ozone channel was closed")
 			}
@@ -97,11 +98,11 @@ func TestOzoneGet(t *testing.T) {
 		store := mockOzoneStore{}
 		sensors := mockSensors{}
 		store.entry.Running = true
-		msync := monitor.InitializeMonitorContext()
-		h := NewHandler(&store, &sensors, msync)
+		mctx := monitor.InitializeMonitorContext(nil, &store, &sensors)
+		h := NewHandler(&store, &sensors, mctx)
 
 		go func() {
-			task, ok := <-msync.OzoneCh
+			task, ok := <-mctx.OzoneCh
 			if !ok {
 				t.Error("ozone channel was closed")
 			}
@@ -126,6 +127,10 @@ type mockOzoneStore struct {
 
 func (m *mockOzoneStore) SetError(err error) {
 	m.err = &err
+}
+
+func (m *mockOzoneStore) SaveTemperature(ctx context.Context, arg database.SaveTemperatureParams) (database.Temperature, error) {
+	return database.Temperature{}, nil
 }
 
 func (m *mockOzoneStore) GetLatestOzoneEntry(ctx context.Context) (database.Ozone, error) {
@@ -160,6 +165,18 @@ func (m *mockOzoneStore) UpdateOzoneEntryStatus(ctx context.Context, arg databas
 	}
 
 	return m.entry, nil
+}
+
+func (m *mockOzoneStore) GetLatestLeakDetected(ctx context.Context) (database.Leak, error) {
+	return database.Leak{}, nil
+}
+
+func (m *mockOzoneStore) CreateLeakDetected(ctx context.Context, detectedAt time.Time) (database.Leak, error) {
+	return database.Leak{}, nil
+}
+
+func (m *mockOzoneStore) ClearDetectedLeak(ctx context.Context, id uuid.UUID) (database.Leak, error) {
+	return database.Leak{}, nil
 }
 
 type mockSensors struct {
