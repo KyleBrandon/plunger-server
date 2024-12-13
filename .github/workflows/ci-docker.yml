@@ -81,6 +81,7 @@ jobs:
             -e PORT=${{ secrets.PORT }} \
             -e TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }} \
             -e TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }} \
+            -e TWILIO_FROM_PHONE_NO=${{ secrets.TWILIO_FROM_PHONE_NO }} \
             -e TWILIO_TO_PHONE_NO=${{ secrets.TWILIO_TO_PHONE_NO }} \
             -p ${{ secrets.PORT }}:${{ secrets.PORT }} \
             -p 6060:6060 \
