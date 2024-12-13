@@ -11,3 +11,4 @@ goose-test-down.sh
 config/
 bin/
 *.log
+*.out

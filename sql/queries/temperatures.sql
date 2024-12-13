@@ -6,4 +6,5 @@ RETURNING *;
 
 -- name: FindMostRecentTemperatures :one
 SELECT * FROM temperatures
-ORDER BY created_at DESC;
+ORDER BY created_at DESC
+LIMIT 1;

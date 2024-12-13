@@ -11,62 +11,72 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
+	"github.com/nikoksr/notify"
 )
 
-// InitializeMonitorSync will initialize a new MonitorSync struct.
-func InitializeMonitorSync() *MonitorSync {
+// InitializeMonitorContext will initialize a new MonitorSync struct.
+func InitializeMonitorContext(notifier *notify.Notify, store MonitorStore, sensors sensor.Sensors) *MonitorContext {
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 
-	msync := MonitorSync{
+	mctx := MonitorContext{
 		wg:         &wg,
 		ctx:        ctx,
+		store:      store,
+		sensors:    sensors,
 		CancelFunc: cancel,
 		OzoneCh:    make(chan OzoneTask),
+		NotifyCh:   make(chan NotificationTask),
+		Notifier:   notifier,
 	}
 
-	return &msync
+	mctx.startMonitorRoutines()
+
+	return &mctx
 }
 
-// NewHandler will create a new Handler struct to manage the go routes that monitor the state of the plunge.
-func NewHandler(msync *MonitorSync, store MonitorStore, sensors sensor.Sensors) *Handler {
-	return &Handler{
-		store:   store,
-		sensors: sensors,
-	}
+// CancelAndWait for the monitor sync routines to exit.
+func (ms *MonitorContext) CancelAndWait() {
+	// If the server stopped, cancel the monitor go routines
+	ms.CancelFunc()
+
+	// wait until all go routines have exited
+	ms.wg.Wait()
 }
 
 // StartMonitorRoutines will start up the go routines that monitor the plunge
-func (h *Handler) StartMonitorRoutines(msync *MonitorSync) {
-	msync.wg.Add(1)
-	go h.monitorTemperatures(msync)
+func (mctx *MonitorContext) startMonitorRoutines() {
+	mctx.wg.Add(1)
+	go mctx.monitorNotifications()
 
-	msync.wg.Add(1)
-	go h.monitorOzone(msync)
+	mctx.wg.Add(1)
+	go mctx.monitorTemperatures()
 
-	msync.wg.Add(1)
-	go h.monitorLeaks(msync)
+	mctx.wg.Add(1)
+	go mctx.monitorOzone()
+
+	mctx.wg.Add(1)
+	go mctx.monitorLeaks()
 }
 
-func (h *Handler) monitorOzone(msync *MonitorSync) {
-	slog.Info(">>monitorOzone")
-	defer slog.Info("<<monitorOzone")
+func (mctx *MonitorContext) monitorOzone() {
+	slog.Debug(">>monitorOzone")
+	defer slog.Debug("<<monitorOzone")
 
 	// close the waitgroup when the routine exits
-	defer msync.wg.Done()
+	defer mctx.wg.Done()
 
 	// start and stop with the ozone off
-	h.sensors.TurnOzoneOff()
-	defer h.sensors.TurnOzoneOff()
+	mctx.sensors.TurnOzoneOff()
+	defer mctx.sensors.TurnOzoneOff()
 
-	slog.Info("monitorOzone: wait for action or done")
 	for {
 		select {
-		case <-msync.ctx.Done():
-			slog.Info("monitorOzone: context done")
+		case <-mctx.ctx.Done():
+			slog.Debug("monitorOzone: context done")
 			return
 
-		case task, ok := <-msync.OzoneCh:
+		case task, ok := <-mctx.OzoneCh:
 			if !ok {
 				slog.Error("The ozone notification channel was closed")
 				return
@@ -75,32 +85,32 @@ func (h *Handler) monitorOzone(msync *MonitorSync) {
 			// process notification from ozone Handler
 			switch task.Action {
 			case OZONEACTION_START:
-				slog.Info("OZONEACTION_START")
-				h.startOzoneGenerator(msync, task.Duration)
+				slog.Debug("OZONEACTION_START")
+				mctx.startOzoneGenerator(task.Duration)
 
 			case OZONEACTION_STOP:
 				// cancel the ozone generator
-				slog.Info("OZONEACTION_STOP")
-				msync.Lock()
-				if msync.OzoneRunning {
-					slog.Info("cancel ozone")
-					msync.OzoneCancel()
+				slog.Debug("OZONEACTION_STOP")
+				mctx.Lock()
+				if mctx.OzoneRunning {
+					slog.Debug("cancel ozone")
+					mctx.OzoneCancel()
 				}
-				msync.Unlock()
+				mctx.Unlock()
 			}
 		}
 	}
 }
 
-func (h *Handler) startOzoneGenerator(msync *MonitorSync, duration int) error {
-	slog.Info(">>startOzoneGenerator")
-	defer slog.Info("<<startOzoneGenerator")
+func (mctx *MonitorContext) startOzoneGenerator(duration int) error {
+	slog.Debug(">>startOzoneGenerator")
+	defer slog.Debug("<<startOzoneGenerator")
 
-	msync.Lock()
-	defer msync.Unlock()
+	mctx.Lock()
+	defer mctx.Unlock()
 
 	// is the ozone generator already running?
-	if msync.OzoneRunning {
+	if mctx.OzoneRunning {
 		// TODO: deal with this better
 		slog.Error("ozone is already running")
 		return errors.New("ozone already running")
@@ -116,76 +126,76 @@ func (h *Handler) startOzoneGenerator(msync *MonitorSync, duration int) error {
 		ExpectedDuration: int32(duration),
 	}
 
-	_, err := h.store.StartOzoneGenerator(msync.ctx, args)
+	_, err := mctx.store.StartOzoneGenerator(mctx.ctx, args)
 	if err != nil {
 		slog.Error("failed to update database with ozone start", "error", err)
 		return err
 	}
 
-	err = h.sensors.TurnOzoneOn()
+	err = mctx.sensors.TurnOzoneOn()
 	if err != nil {
-		h.setOzoneErrorMessage(msync.ctx, "failed to turn on ozone generator", err)
+		mctx.setOzoneErrorMessage(mctx.ctx, "failed to turn on ozone generator", err)
 
 		return err
 	}
 
 	// create a context for the ozone goroutine with a hard timeout
-	ozoneCtx, cancel := context.WithTimeout(msync.ctx, time.Duration(duration)*time.Minute)
-	msync.OzoneCancel = cancel
-	msync.OzoneRunning = true
+	ozoneCtx, cancel := context.WithTimeout(mctx.ctx, time.Duration(duration)*time.Minute)
+	mctx.OzoneCancel = cancel
+	mctx.OzoneRunning = true
 
 	go func() {
-		slog.Info("Enter goroutine to monitor ozone")
-		defer slog.Info("Exit goroutine to monitor ozone")
+		slog.Debug("Enter goroutine to monitor ozone")
+		defer slog.Debug("Exit goroutine to monitor ozone")
 
 		<-ozoneCtx.Done()
-		slog.Info("Ozone generator was stopped")
-		h.stopOzoneGenerator(msync)
+		slog.Debug("Ozone generator was stopped")
+		mctx.stopOzoneGenerator()
 	}()
+
+	mctx.NotifyCh <- NotificationTask{Message: "Ozone generator was started"}
 
 	return nil
 }
 
-func (h *Handler) stopOzoneGenerator(msync *MonitorSync) error {
-	slog.Info(">>stopOzoneGenerator")
-	defer slog.Info("<<stopOzoneGenerator")
+func (mctx *MonitorContext) stopOzoneGenerator() error {
+	slog.Debug(">>stopOzoneGenerator")
+	defer slog.Debug("<<stopOzoneGenerator")
 
 	// turn ozone off no matter what
-	err := h.sensors.TurnOzoneOff()
+	err := mctx.sensors.TurnOzoneOff()
 	if err != nil {
-		// TODO: Notify user!!!
-		h.setOzoneErrorMessage(msync.ctx, "failed to turn off ozone generator", err)
+		mctx.setOzoneErrorMessage(mctx.ctx, "failed to turn off ozone generator", err)
 		return err
 	}
 
-	msync.Lock()
-	msync.OzoneRunning = false
-	msync.Unlock()
+	mctx.Lock()
+	mctx.OzoneRunning = false
+	mctx.Unlock()
 
-	ozone, err := h.store.GetLatestOzoneEntry(msync.ctx)
+	ozone, err := mctx.store.GetLatestOzoneEntry(mctx.ctx)
 	if err != nil {
 		slog.Error("failed to query database for latest ozone entry", "error", err)
 		return err
 	}
 
 	// update the database and stop the ozone
-	_, err = h.store.StopOzoneGenerator(msync.ctx, ozone.ID)
+	_, err = mctx.store.StopOzoneGenerator(mctx.ctx, ozone.ID)
 	if err != nil {
 		slog.Error("failed to update the database with the ozone stop")
 		return err
 	}
 
+	mctx.NotifyCh <- NotificationTask{Message: "Ozone generator was stopped"}
+
 	return nil
 }
 
-func (h *Handler) setOzoneErrorMessage(ctx context.Context, statusMessage string, err error) error {
-	// TODO: Notify the user!!!
-	//
-	//
-
+func (mctx *MonitorContext) setOzoneErrorMessage(ctx context.Context, statusMessage string, err error) error {
 	slog.Error(statusMessage, "error", err)
 
-	ozone, err := h.store.GetLatestOzoneEntry(ctx)
+	// TODO: Should we have a message per ozone entry or something more general?
+	ozone, err := mctx.store.GetLatestOzoneEntry(ctx)
 	if err != nil {
 		slog.Error("failed to query database for latest ozone entry", "error", err)
 		return err
@@ -197,29 +207,31 @@ func (h *Handler) setOzoneErrorMessage(ctx context.Context, statusMessage string
 		StatusMessage: sql.NullString{Valid: true, String: statusMessage},
 	}
 
-	_, dbErr := h.store.UpdateOzoneEntryStatus(ctx, arg)
+	_, dbErr := mctx.store.UpdateOzoneEntryStatus(ctx, arg)
 	if dbErr != nil {
 		// we log the database error but we don't return it, we want to know if we didn't stop the ozone generator
 		slog.Error("failed to update ozone status to indicate ozone was not turned off", "error", err)
 		return err
 	}
 
+	mctx.NotifyCh <- NotificationTask{Message: statusMessage}
+
 	return nil
 }
 
-func (h *Handler) monitorTemperatures(msync *MonitorSync) {
-	slog.Info(">>monitorTemperatures")
-	defer slog.Info("<<monitorTemperatures")
+func (mctx *MonitorContext) monitorTemperatures() {
+	slog.Debug(">>monitorTemperatures")
+	defer slog.Debug("<<monitorTemperatures")
 
-	defer msync.wg.Done()
+	defer mctx.wg.Done()
 
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-msync.ctx.Done():
-			slog.Info("monitorTemperatures: context done")
+		case <-mctx.ctx.Done():
+			slog.Debug("monitorTemperatures: context done")
 			return
 
 		case <-ticker.C:
@@ -231,7 +243,7 @@ func (h *Handler) monitorTemperatures(msync *MonitorSync) {
 				Valid: false,
 			}
 
-			rt, wt := h.sensors.ReadRoomAndWaterTemperature()
+			rt, wt := mctx.sensors.ReadRoomAndWaterTemperature()
 			if rt.Err == nil {
 				roomTemp.Valid = true
 				roomTemp.String = fmt.Sprintf("%f", rt.TemperatureF)
@@ -250,7 +262,7 @@ func (h *Handler) monitorTemperatures(msync *MonitorSync) {
 				WaterTemp: waterTemp,
 				RoomTemp:  roomTemp,
 			}
-			_, err := h.store.SaveTemperature(msync.ctx, arg)
+			_, err := mctx.store.SaveTemperature(mctx.ctx, arg)
 			if err != nil {
 				slog.Error("failed to save the room and water temperatures", "error", err)
 			}
@@ -258,23 +270,23 @@ func (h *Handler) monitorTemperatures(msync *MonitorSync) {
 	}
 }
 
-func (h *Handler) monitorLeaks(msync *MonitorSync) {
-	slog.Info(">>monitorLeaks")
-	defer slog.Info("<<monitorLeaks")
+func (mctx *MonitorContext) monitorLeaks() {
+	slog.Debug(">>monitorLeaks")
+	defer slog.Debug("<<monitorLeaks")
 
-	defer msync.wg.Done()
+	defer mctx.wg.Done()
 
 	// take an initial reading of the leak sensor so we can detect transitions from true/false
-	prevLeakReading, err := h.sensors.IsLeakPresent()
+	prevLeakReading, err := mctx.sensors.IsLeakPresent()
 	if err != nil {
 		slog.Warn("failed to read sensor to determine if a leak is present", "error", err)
 	}
 
 	// if there is a leak present at start create a leak entry
 	if prevLeakReading {
-		_, err := h.store.CreateLeakDetected(msync.ctx, time.Now().UTC())
+		_, err := mctx.store.CreateLeakDetected(mctx.ctx, time.Now().UTC())
 		if err != nil {
-			slog.Error("failed to store leak detection in database", "error", err)
+			slog.Error("failed to mctx.store leak detection in database", "error", err)
 			// TODO: we should have alternative means of reporting this
 		}
 	}
@@ -285,21 +297,21 @@ func (h *Handler) monitorLeaks(msync *MonitorSync) {
 	for {
 		select {
 
-		case <-msync.ctx.Done():
+		case <-mctx.ctx.Done():
 			// task was canceled or timedout
-			slog.Info("monitorLeaks: context done")
+			slog.Debug("monitorLeaks: context done")
 			return
 
 		case <-ticker.C:
 
-			currentLeakReading, err := h.sensors.IsLeakPresent()
+			currentLeakReading, err := mctx.sensors.IsLeakPresent()
 			if err != nil {
 				slog.Warn("failed to read if leak was present", "error", err)
 			}
 
 			// have we had a change since we last read the sensor?
 			if prevLeakReading != currentLeakReading {
-				h.processLeakReading(msync.ctx, currentLeakReading)
+				mctx.processLeakReading(mctx.ctx, currentLeakReading)
 
 				prevLeakReading = currentLeakReading
 			}
@@ -307,7 +319,7 @@ func (h *Handler) monitorLeaks(msync *MonitorSync) {
 			// if a leak was detected, then turn the pump off
 			// TODO: this should be an event that we have listeners on
 			if currentLeakReading {
-				err = h.sensors.TurnPumpOff()
+				err = mctx.sensors.TurnPumpOff()
 				if err != nil {
 					// TODO: notify the user that we could not turn the pump off
 					slog.Error("failed to turn pump off while leak detected", "error", err)
@@ -317,20 +329,57 @@ func (h *Handler) monitorLeaks(msync *MonitorSync) {
 	}
 }
 
-func (h *Handler) processLeakReading(ctx context.Context, leakDetected bool) error {
+func (mctx *MonitorContext) monitorNotifications() {
+	slog.Info(">>monitorNotifications")
+	defer slog.Info("<<monitorNotifications")
+
+	defer mctx.wg.Done()
+	for {
+		select {
+		case <-mctx.ctx.Done():
+			slog.Info("monitorNotifications: context done")
+			return
+
+		case task, ok := <-mctx.NotifyCh:
+			if !ok {
+				slog.Error("The notification channel was closed")
+				return
+			}
+
+			slog.Info(task.Message)
+
+			// Send the SMS
+			if mctx.Notifier != nil {
+				err := mctx.Notifier.Send(
+					context.Background(),
+					"Plunger Notification",
+					task.Message,
+				)
+				if err != nil {
+					slog.Error("failed to send message", "error", err, "message", task.Message)
+				}
+			} else {
+				slog.Warn("Notifier is not registered for notifications")
+			}
+
+		}
+	}
+}
+
+func (mctx *MonitorContext) processLeakReading(ctx context.Context, leakDetected bool) error {
 	var leak database.Leak
 	var err error
 
 	// if a leak was detected then create a new record to track it
 	if leakDetected {
-		leak, err = h.store.CreateLeakDetected(ctx, time.Now().UTC())
+		leak, err = mctx.store.CreateLeakDetected(ctx, time.Now().UTC())
 		if err != nil {
-			slog.Error("failed to store leak detection in database", "error", err)
+			slog.Error("failed to mctx.store leak detection in database", "error", err)
 			// TODO: we should have alternative means of reporting this
 		}
 	} else {
 		// if there is currently no leak, see if we need to report it being cleared
-		leak, err = h.store.GetLatestLeakDetected(ctx)
+		leak, err = mctx.store.GetLatestLeakDetected(mctx.ctx)
 		if err != nil {
 			slog.Warn("failed to read the latest leak from the database, create a new entry", "error", err)
 			return err
@@ -338,7 +387,7 @@ func (h *Handler) processLeakReading(ctx context.Context, leakDetected bool) err
 
 		// the entry's cleared_at should not be set
 		if !leak.ClearedAt.Valid {
-			leak, err = h.store.ClearDetectedLeak(ctx, leak.ID)
+			leak, err = mctx.store.ClearDetectedLeak(ctx, leak.ID)
 			if err != nil {
 				slog.Error("failed to clear detected leak in database", "error", err)
 			}
@@ -349,13 +398,4 @@ func (h *Handler) processLeakReading(ctx context.Context, leakDetected bool) err
 	}
 
 	return nil
-}
-
-// CancelAndWait for the monitor sync routines to exit.
-func (ms *MonitorSync) CancelAndWait() {
-	// If the server stopped, cancel the monitor go routines
-	ms.CancelFunc()
-
-	// wait until all go routines have exited
-	ms.wg.Wait()
 }

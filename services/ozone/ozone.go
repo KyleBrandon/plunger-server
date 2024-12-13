@@ -11,11 +11,11 @@ import (
 	"github.com/KyleBrandon/plunger-server/utils"
 )
 
-func NewHandler(store OzoneStore, sensor sensor.Sensors, msync *monitor.MonitorSync) *Handler {
+func NewHandler(store OzoneStore, sensor sensor.Sensors, mctx *monitor.MonitorContext) *Handler {
 	return &Handler{
 		store,
 		sensor,
-		msync,
+		mctx,
 	}
 }
 
@@ -83,7 +83,7 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.msync.OzoneCh <- monitor.OzoneTask{Action: monitor.OZONEACTION_START, Duration: duration}
+	h.mctx.OzoneCh <- monitor.OzoneTask{Action: monitor.OZONEACTION_START, Duration: duration}
 
 	utils.RespondWithNoContent(w, http.StatusCreated)
 }
@@ -93,7 +93,7 @@ func (h *Handler) handlerOzoneStop(w http.ResponseWriter, r *http.Request) {
 	slog.Debug(">>handlerStopOzone")
 	defer slog.Debug("<<handlerStopOzone")
 
-	h.msync.OzoneCh <- monitor.OzoneTask{Action: monitor.OZONEACTION_STOP}
+	h.mctx.OzoneCh <- monitor.OzoneTask{Action: monitor.OZONEACTION_STOP}
 
 	utils.RespondWithNoContent(w, http.StatusNoContent)
 }

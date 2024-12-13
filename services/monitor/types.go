@@ -8,6 +8,7 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/google/uuid"
+	"github.com/nikoksr/notify"
 )
 
 const (
@@ -23,20 +24,23 @@ type (
 		Duration int
 	}
 
-	MonitorSync struct {
-		sync.Mutex
-		wg         *sync.WaitGroup
-		ctx        context.Context
-		CancelFunc context.CancelFunc
+	NotificationTask struct {
+		Message string
+	}
 
+	MonitorContext struct {
+		sync.Mutex
+		wg      *sync.WaitGroup
+		ctx     context.Context
+		store   MonitorStore
+		sensors sensor.Sensors
+
+		CancelFunc   context.CancelFunc
 		OzoneRunning bool
 		OzoneCh      chan OzoneTask
 		OzoneCancel  context.CancelFunc
-	}
-
-	Handler struct {
-		store   MonitorStore
-		sensors sensor.Sensors
+		NotifyCh     chan NotificationTask
+		Notifier     *notify.Notify
 	}
 
 	MonitorStore interface {

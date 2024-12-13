@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/KyleBrandon/plunger-server/utils"
 	"github.com/joho/godotenv"
+	"github.com/nikoksr/notify"
+	"github.com/nikoksr/notify/service/twilio"
 )
 
 const (
@@ -35,6 +38,7 @@ type serverConfig struct {
 	Logger             *slog.Logger
 	LoggerLevel        *slog.LevelVar
 	LogFile            *os.File
+	Notifier           *notify.Notify
 
 	Sensors        sensor.Sensors
 	Queries        *database.Queries
@@ -121,6 +125,27 @@ func (sc *serverConfig) loadConfiguration() {
 	sc.ConfigFileLocation = os.Getenv("CONFIG_FILE_LOCATION")
 	if len(sc.ConfigFileLocation) == 0 {
 		sc.ConfigFileLocation = DEFAULT_CONFIG_FILE_LOCATION
+	}
+
+	// TODO: better encapsulation and error handling
+	// TODO: add the "to phone" to the user account, flesh that out
+	twilioAccountSID := os.Getenv("TWILIO_ACCOUNT_SID")
+	twilioAuthToken := os.Getenv("TWILIO_AUTH_TOKEN")
+	twilioFromPhone := os.Getenv("TWILIO_FROM_PHONE_NO")
+	twilioToPhone := os.Getenv("TWILIO_TO_PHONE_NO")
+	if len(twilioAccountSID) != 0 {
+		twilioService, err := twilio.New(twilioAccountSID, twilioAuthToken, twilioFromPhone)
+		if err != nil {
+			log.Fatalf("failed to initialize Twilio service: %v", err)
+		}
+
+		// Set the Twilio sender phone number and recipient
+		twilioService.AddReceivers(twilioToPhone) // Replace with recipient's phone number
+
+		// Create a notifier
+		notifier := notify.New()
+		notifier.UseServices(twilioService)
+		sc.Notifier = notifier
 	}
 
 	// mock sensor flag is a command line flag for debugging
