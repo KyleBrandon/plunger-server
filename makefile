@@ -1,5 +1,5 @@
 build:
-	@go build -o bin/plunge-server
+	@go build -o ./bin/plunger-server ./cmd/plunger-server
 
 test:
 	@go test -v ./...

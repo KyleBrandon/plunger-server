@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"database/sql"
@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/KyleBrandon/plunger-server/config"
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
 	"github.com/KyleBrandon/plunger-server/utils"
@@ -42,11 +43,11 @@ type serverConfig struct {
 
 	Sensors        sensor.Sensors
 	Queries        *database.Queries
-	dbConnection   *sql.DB
+	DBConnection   *sql.DB
 	OriginPatterns []string
 }
 
-func initializeServerConfig() (serverConfig, error) {
+func InitializeServerConfig() (serverConfig, error) {
 	sc := serverConfig{}
 
 	// MUST BE FIRST
@@ -55,7 +56,7 @@ func initializeServerConfig() (serverConfig, error) {
 	sc.configureLogger()
 
 	// load the configuration file and environment settings
-	config, err := LoadConfigSettings(sc.ConfigFileLocation)
+	config, err := config.LoadConfigSettings(sc.ConfigFileLocation)
 	if err != nil {
 		slog.Error("failed to load config file", "error", err)
 		os.Exit(1)
@@ -90,7 +91,7 @@ func (sc *serverConfig) configureLogger() {
 	level, err := utils.ParseLogLevel(logLevel)
 	if err != nil {
 		slog.Error("Failed to parse the log level, setting to DefaultLogLevel", "error", err, "log_level", logLevel)
-		level = DefaultLogLevel
+		level = config.DefaultLogLevel
 	}
 
 	currentLevel.Set(level)
@@ -152,7 +153,7 @@ func (sc *serverConfig) loadConfiguration() {
 	sc.UseMockSensor = mockSensor
 }
 
-func (config *serverConfig) runServer(mux *http.ServeMux) {
+func (config *serverConfig) RunServer(mux *http.ServeMux) {
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),
 		Handler: mux,
@@ -170,12 +171,12 @@ func (config *serverConfig) openDatabase() {
 		slog.Error("failed to open database connection", "error", err)
 	}
 
-	config.dbConnection = db
+	config.DBConnection = db
 	config.Queries = database.New(db)
 }
 
 func init() {
 	// initialize the mock sensor commandline flag
 	flag.BoolVar(&mockSensor, "use_mock_sensor", false, "Indicate if we should use a mock sensor for the server instance.")
-	flag.StringVar(&logLevel, "log_level", DefaultLogLevel.String(), "The log level to start the server at")
+	flag.StringVar(&logLevel, "log_level", config.DefaultLogLevel.String(), "The log level to start the server at")
 }

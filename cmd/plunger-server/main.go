@@ -9,6 +9,7 @@ import (
 
 	_ "net/http/pprof"
 
+	"github.com/KyleBrandon/plunger-server/api/server"
 	"github.com/KyleBrandon/plunger-server/services/filters"
 	"github.com/KyleBrandon/plunger-server/services/health"
 	"github.com/KyleBrandon/plunger-server/services/leaks"
@@ -26,13 +27,13 @@ import (
 func main() {
 	flag.Parse() // Parse the command-line flags
 
-	config, err := initializeServerConfig()
+	config, err := server.InitializeServerConfig()
 	if err != nil {
 		slog.Error("failed to load config file")
 		os.Exit(1)
 	}
 
-	defer config.dbConnection.Close()
+	defer config.DBConnection.Close()
 	defer config.LogFile.Close()
 
 	mux := http.NewServeMux()
@@ -74,7 +75,7 @@ func main() {
 	}()
 
 	// start the server
-	config.runServer(mux)
+	config.RunServer(mux)
 
 	mctx.CancelAndWait()
 }
