@@ -14,8 +14,12 @@ RUN go mod download
 # Copy the source code into the container
 COPY . .
 
+
+# install make
+RUN apk add make
+
 # Build the Go web server binary
-RUN make
+RUN make 
 
 # Stage 2: Create a minimal image for running the application
 FROM alpine:latest
