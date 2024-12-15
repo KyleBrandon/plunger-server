@@ -11,7 +11,7 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
-	"github.com/KyleBrandon/plunger-server/utils"
+	"github.com/KyleBrandon/plunger-server/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -137,10 +137,6 @@ func (h *Handler) handlePlungesStop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	roomTemp, waterTemp := h.sensors.ReadRoomAndWaterTemperature()
-	if err != nil {
-		utils.RespondWithError(w, http.StatusInternalServerError, "failed to read the temperature at stop plunge", err)
-		return
-	}
 
 	params := database.StopPlungeParams{
 		ID:           pid,

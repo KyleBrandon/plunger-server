@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
-	"github.com/KyleBrandon/plunger-server/utils"
+	"github.com/KyleBrandon/plunger-server/pkg/utils"
 )
 
 func NewHandler(store LeakStore) *Handler {

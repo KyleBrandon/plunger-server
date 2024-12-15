@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/KyleBrandon/plunger-server/utils"
+	"github.com/KyleBrandon/plunger-server/pkg/utils"
 )
 
 func NewHandler(levelVar *slog.LevelVar, logger *slog.Logger) *Handler {

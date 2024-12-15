@@ -12,7 +12,17 @@ import (
 	"github.com/KyleBrandon/plunger-server/config"
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
-	"github.com/KyleBrandon/plunger-server/utils"
+	"github.com/KyleBrandon/plunger-server/pkg/server/filters"
+	"github.com/KyleBrandon/plunger-server/pkg/server/health"
+	"github.com/KyleBrandon/plunger-server/pkg/server/leaks"
+	"github.com/KyleBrandon/plunger-server/pkg/server/monitor"
+	"github.com/KyleBrandon/plunger-server/pkg/server/ozone"
+	"github.com/KyleBrandon/plunger-server/pkg/server/plunges/v2"
+	"github.com/KyleBrandon/plunger-server/pkg/server/pump"
+	"github.com/KyleBrandon/plunger-server/pkg/server/status"
+	"github.com/KyleBrandon/plunger-server/pkg/server/temperatures"
+	"github.com/KyleBrandon/plunger-server/pkg/server/users"
+	"github.com/KyleBrandon/plunger-server/pkg/utils"
 	"github.com/joho/godotenv"
 	"github.com/nikoksr/notify"
 	"github.com/nikoksr/notify/service/twilio"
@@ -30,7 +40,9 @@ var (
 	logLevel   string
 )
 
-type serverConfig struct {
+type ServerConfig struct {
+	mux                *http.ServeMux
+	mctx               *monitor.MonitorContext
 	ServerPort         string
 	DatabaseURL        string
 	UseMockSensor      bool
@@ -47,8 +59,71 @@ type serverConfig struct {
 	OriginPatterns []string
 }
 
-func InitializeServerConfig() (serverConfig, error) {
-	sc := serverConfig{}
+// InitializeServer to start working
+func InitializeServer() (ServerConfig, error) {
+	config, err := initializeServerConfig()
+	if err != nil {
+		return config, err
+	}
+
+	defer config.DBConnection.Close()
+	defer config.LogFile.Close()
+
+	config.mux = http.NewServeMux()
+
+	config.mctx = monitor.InitializeMonitorContext(config.Notifier, config.Queries, config.Sensors)
+
+	healthHandler := health.NewHandler(config.LoggerLevel, config.Logger)
+	healthHandler.RegisterRoutes(config.mux)
+
+	temperatureHandler := temperatures.NewHandler(config.Sensors)
+	temperatureHandler.RegisterRoutes(config.mux)
+
+	userHandler := users.NewHandler(config.Queries)
+	userHandler.RegisterRoutes(config.mux)
+
+	ozoneHandler := ozone.NewHandler(config.Queries, config.Sensors, config.mctx)
+	ozoneHandler.RegisterRoutes(config.mux)
+
+	leakHandler := leaks.NewHandler(config.Queries)
+	leakHandler.RegisterRoutes(config.mux)
+
+	pumpHandler := pump.NewHandler(config.Sensors)
+	pumpHandler.RegisterRoutes(config.mux)
+
+	plungesHandler := plunges.NewHandler(config.Queries, config.Sensors)
+	plungesHandler.RegisterRoutes(config.mux)
+
+	statusHandler := status.NewHandler(config.Queries, config.Sensors, config.OriginPatterns)
+	statusHandler.RegisterRoutes(config.mux)
+
+	filterHandler := filters.NewHandler(config.Queries)
+	filterHandler.RegisterRoutes(config.mux)
+
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
+	return config, err
+}
+
+// RunServer will start listening for connections
+func (config *ServerConfig) RunServer() {
+	server := &http.Server{
+		Addr:    fmt.Sprintf(":%s", config.ServerPort),
+		Handler: config.mux,
+	}
+
+	slog.Info("Starting server", "port", config.ServerPort)
+	if err := server.ListenAndServe(); err != nil {
+		slog.Error("Server failed", "error", err)
+	}
+
+	config.mctx.CancelAndWait()
+}
+
+func initializeServerConfig() (ServerConfig, error) {
+	sc := ServerConfig{}
 
 	// MUST BE FIRST
 	sc.loadConfiguration()
@@ -79,7 +154,7 @@ func InitializeServerConfig() (serverConfig, error) {
 	return sc, nil
 }
 
-func (sc *serverConfig) configureLogger() {
+func (sc *ServerConfig) configureLogger() {
 	logFile, err := os.OpenFile(sc.LogFileLocation, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		slog.Warn("Failed to open log file: %v", "error", err)
@@ -105,7 +180,7 @@ func (sc *serverConfig) configureLogger() {
 	sc.LogFile = logFile
 }
 
-func (sc *serverConfig) loadConfiguration() {
+func (sc *ServerConfig) loadConfiguration() {
 	// load the environment
 	err := godotenv.Load()
 	if err != nil {
@@ -153,19 +228,7 @@ func (sc *serverConfig) loadConfiguration() {
 	sc.UseMockSensor = mockSensor
 }
 
-func (config *serverConfig) RunServer(mux *http.ServeMux) {
-	server := &http.Server{
-		Addr:    fmt.Sprintf(":%s", config.ServerPort),
-		Handler: mux,
-	}
-
-	slog.Info("Starting server", "port", config.ServerPort)
-	if err := server.ListenAndServe(); err != nil {
-		slog.Error("Server failed", "error", err)
-	}
-}
-
-func (config *serverConfig) openDatabase() {
+func (config *ServerConfig) openDatabase() {
 	db, err := sql.Open("postgres", config.DatabaseURL)
 	if err != nil {
 		slog.Error("failed to open database connection", "error", err)

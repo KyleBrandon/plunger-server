@@ -7,8 +7,8 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
-	"github.com/KyleBrandon/plunger-server/services/monitor"
-	"github.com/KyleBrandon/plunger-server/utils"
+	"github.com/KyleBrandon/plunger-server/pkg/server/monitor"
+	"github.com/KyleBrandon/plunger-server/pkg/utils"
 )
 
 func NewHandler(store OzoneStore, sensor sensor.Sensors, mctx *monitor.MonitorContext) *Handler {

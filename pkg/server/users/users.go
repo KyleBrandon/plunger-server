@@ -9,7 +9,7 @@ import (
 	"net/mail"
 
 	"github.com/KyleBrandon/plunger-server/internal/auth"
-	"github.com/KyleBrandon/plunger-server/utils"
+	"github.com/KyleBrandon/plunger-server/pkg/utils"
 )
 
 func NewHandler(store UserStore) *Handler {

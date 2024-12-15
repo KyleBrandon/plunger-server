@@ -2,80 +2,25 @@ package main
 
 import (
 	"flag"
-	"log"
 	"log/slog"
-	"net/http"
 	"os"
 
 	_ "net/http/pprof"
 
-	"github.com/KyleBrandon/plunger-server/api/server"
-	"github.com/KyleBrandon/plunger-server/services/filters"
-	"github.com/KyleBrandon/plunger-server/services/health"
-	"github.com/KyleBrandon/plunger-server/services/leaks"
-	"github.com/KyleBrandon/plunger-server/services/monitor"
-	"github.com/KyleBrandon/plunger-server/services/ozone"
-	plungesV1 "github.com/KyleBrandon/plunger-server/services/plunges/v1"
-	plungesV2 "github.com/KyleBrandon/plunger-server/services/plunges/v2"
-	"github.com/KyleBrandon/plunger-server/services/pump"
-	"github.com/KyleBrandon/plunger-server/services/status"
-	"github.com/KyleBrandon/plunger-server/services/temperatures"
-	"github.com/KyleBrandon/plunger-server/services/users"
+	"github.com/KyleBrandon/plunger-server/pkg/server"
 	_ "github.com/lib/pq"
 )
 
 func main() {
-	flag.Parse() // Parse the command-line flags
+	// parse the command-line flags
+	flag.Parse()
 
-	config, err := server.InitializeServerConfig()
+	config, err := server.InitializeServer()
 	if err != nil {
 		slog.Error("failed to load config file")
 		os.Exit(1)
 	}
 
-	defer config.DBConnection.Close()
-	defer config.LogFile.Close()
-
-	mux := http.NewServeMux()
-
-	mctx := monitor.InitializeMonitorContext(config.Notifier, config.Queries, config.Sensors)
-
-	healthHandler := health.NewHandler(config.LoggerLevel, config.Logger)
-	healthHandler.RegisterRoutes(mux)
-
-	temperatureHandler := temperatures.NewHandler(config.Sensors)
-	temperatureHandler.RegisterRoutes(mux)
-
-	userHandler := users.NewHandler(config.Queries)
-	userHandler.RegisterRoutes(mux)
-
-	ozoneHandler := ozone.NewHandler(config.Queries, config.Sensors, mctx)
-	ozoneHandler.RegisterRoutes(mux)
-
-	leakHandler := leaks.NewHandler(config.Queries)
-	leakHandler.RegisterRoutes(mux)
-
-	pumpHandler := pump.NewHandler(config.Sensors)
-	pumpHandler.RegisterRoutes(mux)
-
-	plungesHandlerV1 := plungesV1.NewHandler(config.Queries, config.Sensors)
-	plungesHandlerV1.RegisterRoutes(mux)
-
-	plungesHandlerV2 := plungesV2.NewHandler(config.Queries, config.Sensors)
-	plungesHandlerV2.RegisterRoutes(mux)
-
-	statusHandler := status.NewHandler(config.Queries, config.Sensors, config.OriginPatterns)
-	statusHandler.RegisterRoutes(mux)
-
-	filterHandler := filters.NewHandler(config.Queries)
-	filterHandler.RegisterRoutes(mux)
-
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
-
 	// start the server
-	config.RunServer(mux)
-
-	mctx.CancelAndWait()
+	config.RunServer()
 }

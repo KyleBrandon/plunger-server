@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
-	"github.com/KyleBrandon/plunger-server/utils"
+	"github.com/KyleBrandon/plunger-server/pkg/utils"
 )
 
 func TestGetUser(t *testing.T) {

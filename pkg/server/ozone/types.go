@@ -6,7 +6,7 @@ import (
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
-	"github.com/KyleBrandon/plunger-server/services/monitor"
+	"github.com/KyleBrandon/plunger-server/pkg/server/monitor"
 	"github.com/google/uuid"
 )
 

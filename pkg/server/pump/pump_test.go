@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/KyleBrandon/plunger-server/utils"
+	"github.com/KyleBrandon/plunger-server/pkg/utils"
 )
 
 func TestPumpStatusIsOn(t *testing.T) {
