@@ -15,13 +15,13 @@ RUN go mod download
 COPY . .
 
 # Build the Go web server binary
-RUN go build -o /plunger-server
+RUN make
 
 # Stage 2: Create a minimal image for running the application
 FROM alpine:latest
 
 # Add some default quality of life
-RUN apk add vim curl ufw grep
+RUN apk add vim curl 
 
 # Accept build-time variables for DATABASE_URL and PORT
 ARG DATABASE_URL
@@ -31,13 +31,14 @@ ARG PORT
 ENV DATABASE_URL=${DATABASE_URL}
 ENV PORT=${PORT}
 
+
 # Set the working directory inside the container
 WORKDIR /app
 
 # Copy the pre-built Go binary from the GitHub Action build step
-COPY --from=builder /plunger-server /app/plunger-server
-COPY entrypoint.sh /app/entrypoint.sh
-COPY config_template.json /app/config_template.json
+COPY --from=builder /bin/plunger-server /app/plunger-server
+COPY /scripts/entrypoint.sh /app/entrypoint.sh
+COPY /config/config_template.json /app/config_template.json
 
 RUN chmod +x /app/entrypoint.sh
 
