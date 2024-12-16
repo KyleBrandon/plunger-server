@@ -3,12 +3,12 @@ out
 .DS_Store
 ._.DS_Store
 .fuse*
-plunger-server
+/plunger-server
 goose.sh
 goose-test.sh
 goose-down.sh
 goose-test-down.sh
-config/
+config.json
 bin/
 *.log
 *.out

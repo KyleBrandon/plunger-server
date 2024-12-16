@@ -1,0 +1,28 @@
+# The connection string for the database
+#  - <username/password> contains the credentials for the database
+#  - <IP address/port> for the database server
+#  - <database name> to connect to
+DATABASE_URL=postgres://<username>:<password>@<IP address>:<port>/<database name>?sslmode=isable
+
+# Inicate the port for the server to run on
+PORT=8080
+
+# Location to store the log file
+LOG_FILE_LOCATION="./plunger-server.log"
+
+# Location for the configuration file
+CONFIG_FILE_LOCATION="./config/config.json"
+
+# Twilio account string identifier found in the admin console
+TWILIO_ACCOUNT_SID=<account identifier>
+
+# Twilio authentication token found in the admin console
+TWILIO_AUTH_TOKEN=<auth token for the account>
+
+# Twilio phone number that will be sending the SMS messages
+TWILIO_FROM_PHONE_NO=<phone number to send SMS from>
+
+# Destination phone number to receive SMS messages
+TWILIO_TO_PHONE_NO=<phone number to send SMS to>
+
+

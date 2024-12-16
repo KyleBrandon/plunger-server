@@ -52,6 +52,7 @@ jobs:
       - name: Build Docker image
         run: |
           docker build \
+            -f ./docker/Dockerfile \
             --platform linux/arm/v7 \
             --build-arg DATABASE_URL=${{ secrets.DATABASE_URL }} \
             --build-arg PORT=${{ secrets.PORT }} \
