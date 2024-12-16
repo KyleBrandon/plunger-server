@@ -40,9 +40,9 @@ ENV PORT=${PORT}
 WORKDIR /app
 
 # Copy the pre-built Go binary from the GitHub Action build step
-COPY --from=builder /bin/plunger-server /app/plunger-server
-COPY /scripts/entrypoint.sh /app/entrypoint.sh
-COPY /config/config_template.json /app/config_template.json
+COPY --from=builder ./bin/plunger-server /app/plunger-server
+COPY ./scripts/entrypoint.sh /app/entrypoint.sh
+COPY ./config/config_template.json /app/config_template.json
 
 RUN chmod +x /app/entrypoint.sh
 
