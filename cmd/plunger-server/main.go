@@ -15,12 +15,9 @@ func main() {
 	// parse the command-line flags
 	flag.Parse()
 
-	config, err := server.InitializeServer()
+	err := server.InitializeServer()
 	if err != nil {
 		slog.Error("failed to load config file")
 		os.Exit(1)
 	}
-
-	// start the server
-	config.RunServer()
 }

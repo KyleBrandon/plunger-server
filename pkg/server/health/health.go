@@ -25,7 +25,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 func (h *Handler) handlerHealthGet(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("enter handlerGetHealth")
+	slog.Debug(">>handlerGetHealth")
+	defer slog.Debug("<<handlerGetHealth")
+
 	response := struct {
 		Status string `json:"status"`
 	}{

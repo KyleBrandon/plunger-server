@@ -30,14 +30,13 @@ import (
 
 const (
 	DEFAULT_SERVER_PORT          = "8080"
-	DEFAULT_LOG_FILE_LOCATION    = "./plunger-server.log"
 	DEFAULT_CONFIG_FILE_LOCATION = "./config/config.json"
 )
 
 // Used by "flag" to read command line argument
 var (
-	mockSensor bool
-	logLevel   string
+	cmdLineFlagMockSensor bool
+	cmdLineFlagLogLevel   string
 )
 
 type ServerConfig struct {
@@ -59,13 +58,24 @@ type ServerConfig struct {
 	OriginPatterns []string
 }
 
+// init will read and initialize the global command line variables
+func init() {
+	// initialize the mock sensor commandline flag
+	flag.BoolVar(&cmdLineFlagMockSensor, "use_mock_sensor", false, "Indicate if we should use a mock sensor for the server instance.")
+	flag.StringVar(&cmdLineFlagLogLevel, "log_level", config.DefaultLogLevel.String(), "The log level to start the server at")
+}
+
 // InitializeServer to start working
-func InitializeServer() (ServerConfig, error) {
+func InitializeServer() error {
+	slog.Debug(">>InitializeServer")
+	defer slog.Debug("<<InitializeServer")
+
 	config, err := initializeServerConfig()
 	if err != nil {
-		return config, err
+		return err
 	}
 
+	// TODO: close these when the server exists (similar to MonitorContext)
 	defer config.DBConnection.Close()
 	defer config.LogFile.Close()
 
@@ -104,17 +114,23 @@ func InitializeServer() (ServerConfig, error) {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
-	return config, err
+	// start the server
+	config.runServer()
+
+	return err
 }
 
-// RunServer will start listening for connections
-func (config *ServerConfig) RunServer() {
+// runServer will start listening for connections
+func (config *ServerConfig) runServer() {
+	slog.Debug(">>runServer")
+	defer slog.Debug("<<runServer")
+
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),
 		Handler: config.mux,
 	}
 
-	slog.Info("Starting server", "port", config.ServerPort)
+	slog.Debug("Starting server", "port", config.ServerPort)
 	if err := server.ListenAndServe(); err != nil {
 		slog.Error("Server failed", "error", err)
 	}
@@ -123,11 +139,15 @@ func (config *ServerConfig) RunServer() {
 }
 
 func initializeServerConfig() (ServerConfig, error) {
+	slog.Debug(">>initalizeServerConfig")
+	defer slog.Debug("<<initalizeServerConfig")
+
 	sc := ServerConfig{}
 
 	// MUST BE FIRST
-	sc.loadConfiguration()
+	sc.readEnvironmentVariables()
 
+	// configure slog
 	sc.configureLogger()
 
 	// load the configuration file and environment settings
@@ -154,33 +174,10 @@ func initializeServerConfig() (ServerConfig, error) {
 	return sc, nil
 }
 
-func (sc *ServerConfig) configureLogger() {
-	logFile, err := os.OpenFile(sc.LogFileLocation, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		slog.Warn("Failed to open log file: %v", "error", err)
-		os.Exit(1)
-	}
+func (sc *ServerConfig) readEnvironmentVariables() {
+	slog.Debug(">>loadConfiguration")
+	defer slog.Debug("<<loadConfiguration")
 
-	currentLevel := new(slog.LevelVar)
-
-	level, err := utils.ParseLogLevel(logLevel)
-	if err != nil {
-		slog.Error("Failed to parse the log level, setting to DefaultLogLevel", "error", err, "log_level", logLevel)
-		level = config.DefaultLogLevel
-	}
-
-	currentLevel.Set(level)
-
-	logger := slog.New(slog.NewTextHandler(logFile,
-		&slog.HandlerOptions{Level: currentLevel}))
-	slog.SetDefault(logger)
-
-	sc.Logger = logger
-	sc.LoggerLevel = currentLevel
-	sc.LogFile = logFile
-}
-
-func (sc *ServerConfig) loadConfiguration() {
 	// load the environment
 	err := godotenv.Load()
 	if err != nil {
@@ -188,15 +185,17 @@ func (sc *ServerConfig) loadConfiguration() {
 	}
 
 	sc.DatabaseURL = os.Getenv("DATABASE_URL")
+	if len(sc.DatabaseURL) == 0 {
+		slog.Error("no database connection string is configured")
+		os.Exit(1)
+	}
+
 	sc.ServerPort = os.Getenv("PORT")
 	if len(sc.ServerPort) == 0 {
 		sc.ServerPort = DEFAULT_SERVER_PORT
 	}
 
 	sc.LogFileLocation = os.Getenv("LOG_FILE_LOCATION")
-	if len(sc.LogFileLocation) == 0 {
-		sc.LogFileLocation = DEFAULT_LOG_FILE_LOCATION
-	}
 
 	sc.ConfigFileLocation = os.Getenv("CONFIG_FILE_LOCATION")
 	if len(sc.ConfigFileLocation) == 0 {
@@ -210,6 +209,8 @@ func (sc *ServerConfig) loadConfiguration() {
 	twilioFromPhone := os.Getenv("TWILIO_FROM_PHONE_NO")
 	twilioToPhone := os.Getenv("TWILIO_TO_PHONE_NO")
 	if len(twilioAccountSID) != 0 {
+		slog.Debug("Twilio account information present, configuring Notifier")
+
 		twilioService, err := twilio.New(twilioAccountSID, twilioAuthToken, twilioFromPhone)
 		if err != nil {
 			log.Fatalf("failed to initialize Twilio service: %v", err)
@@ -225,7 +226,47 @@ func (sc *ServerConfig) loadConfiguration() {
 	}
 
 	// mock sensor flag is a command line flag for debugging
-	sc.UseMockSensor = mockSensor
+	sc.UseMockSensor = cmdLineFlagMockSensor
+}
+
+func (sc *ServerConfig) configureLogger() {
+	slog.Debug(">>configureLogger")
+	defer slog.Debug("<<configureLogger")
+
+	// craete a variable to store the current log level
+	currentLevel := new(slog.LevelVar)
+
+	// parse the log level from any passed in command line flag
+	level, err := utils.ParseLogLevel(cmdLineFlagLogLevel)
+	if err != nil {
+		slog.Error("Failed to parse the log level, setting to DefaultLogLevel", "error", err, "log_level", cmdLineFlagLogLevel)
+		level = config.DefaultLogLevel
+	}
+
+	// set the log level
+	currentLevel.Set(level)
+
+	// by default we will write to stderr
+	logFile := os.Stderr
+	if len(sc.LogFileLocation) != 0 {
+		logFile, err = os.OpenFile(sc.LogFileLocation, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			slog.Warn("Failed to open log file: %v", "error", err)
+			os.Exit(1)
+		}
+
+	}
+
+	// create new text handler for log file
+	fileHandler := slog.NewTextHandler(logFile, &slog.HandlerOptions{Level: currentLevel})
+
+	logger := slog.New(fileHandler)
+
+	slog.SetDefault(logger)
+
+	sc.Logger = logger
+	sc.LoggerLevel = currentLevel
+	sc.LogFile = logFile
 }
 
 func (config *ServerConfig) openDatabase() {
@@ -236,10 +277,4 @@ func (config *ServerConfig) openDatabase() {
 
 	config.DBConnection = db
 	config.Queries = database.New(db)
-}
-
-func init() {
-	// initialize the mock sensor commandline flag
-	flag.BoolVar(&mockSensor, "use_mock_sensor", false, "Indicate if we should use a mock sensor for the server instance.")
-	flag.StringVar(&logLevel, "log_level", config.DefaultLogLevel.String(), "The log level to start the server at")
 }

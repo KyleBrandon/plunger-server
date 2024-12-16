@@ -16,6 +16,9 @@ import (
 
 // InitializeMonitorContext will initialize a new MonitorSync struct.
 func InitializeMonitorContext(notifier *notify.Notify, store MonitorStore, sensors sensor.Sensors) *MonitorContext {
+	slog.Debug(">>InitializeMonitorContext")
+	defer slog.Debug("<<InitializeMonitorContext")
+
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 
