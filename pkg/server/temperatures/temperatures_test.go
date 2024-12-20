@@ -21,7 +21,7 @@ func TestReadTemperatures(t *testing.T) {
 			},
 		}
 
-		h := NewHandler(&s)
+		h := NewHandler(nil, &s)
 
 		rr := utils.TestRequest(t, http.MethodGet, "/v1/temperatures", nil, h.handlerTemperaturesGet)
 
@@ -36,7 +36,7 @@ func TestReadTemperatures(t *testing.T) {
 
 	t.Run("should read temperature sensors", func(t *testing.T) {
 		sensor := mockSensors{}
-		h := NewHandler(&sensor)
+		h := NewHandler(nil, &sensor)
 
 		rr := utils.TestRequest(t, http.MethodGet, "/v1/temperatures", nil, h.handlerTemperaturesGet)
 

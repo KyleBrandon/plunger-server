@@ -249,6 +249,25 @@ func (mctx *MonitorContext) monitorTemperatures() {
 			}
 
 			mctx.saveCurrentTemperatures(rt, wt)
+
+			mctx.Lock()
+			if mctx.temperatureMonitoring && mctx.targetTemperature == float32(wt.TemperatureF) {
+				// notify  the user
+				mctx.NotifyCh <- NotificationTask{Message: fmt.Sprintf("Target temperature %v was reached", mctx.targetTemperature)}
+				mctx.temperatureMonitoring = false
+			}
+			mctx.Unlock()
+
+		case task, ok := <-mctx.TempMonitorCh:
+			if !ok {
+				slog.Error("The temperature notification channel was closed")
+				return
+			}
+
+			mctx.Lock()
+			mctx.targetTemperature = task.TargetTemperature
+			mctx.temperatureMonitoring = true
+			mctx.Unlock()
 		}
 	}
 }

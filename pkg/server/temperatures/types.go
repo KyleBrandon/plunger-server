@@ -2,6 +2,7 @@ package temperatures
 
 import (
 	"github.com/KyleBrandon/plunger-server/internal/sensor"
+	"github.com/KyleBrandon/plunger-server/pkg/server/monitor"
 )
 
 type (
@@ -15,6 +16,11 @@ type (
 	}
 
 	Handler struct {
+		mctx    *monitor.MonitorContext
 		sensors sensor.Sensors
+	}
+
+	TemperatureNotifyRequest struct {
+		TargetTemperature float32 `json:"temperature_target"`
 	}
 )

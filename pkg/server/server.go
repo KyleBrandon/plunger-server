@@ -86,7 +86,7 @@ func InitializeServer() error {
 	healthHandler := health.NewHandler(config.LoggerLevel, config.Logger)
 	healthHandler.RegisterRoutes(config.mux)
 
-	temperatureHandler := temperatures.NewHandler(config.Sensors)
+	temperatureHandler := temperatures.NewHandler(config.mctx, config.Sensors)
 	temperatureHandler.RegisterRoutes(config.mux)
 
 	userHandler := users.NewHandler(config.Queries)
