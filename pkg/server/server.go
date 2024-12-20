@@ -122,15 +122,15 @@ func InitializeServer() error {
 
 // runServer will start listening for connections
 func (config *ServerConfig) runServer() {
-	slog.Debug(">>runServer")
-	defer slog.Debug("<<runServer")
+	slog.Info(">>runServer")
+	defer slog.Info("<<runServer")
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%s", config.ServerPort),
 		Handler: config.mux,
 	}
 
-	slog.Debug("Starting server", "port", config.ServerPort)
+	slog.Info("Starting server", "port", config.ServerPort)
 	if err := server.ListenAndServe(); err != nil {
 		slog.Error("Server failed", "error", err)
 	}
@@ -139,8 +139,8 @@ func (config *ServerConfig) runServer() {
 }
 
 func initializeServerConfig() (ServerConfig, error) {
-	slog.Debug(">>initalizeServerConfig")
-	defer slog.Debug("<<initalizeServerConfig")
+	slog.Info(">>initalizeServerConfig")
+	defer slog.Info("<<initalizeServerConfig")
 
 	sc := ServerConfig{}
 
@@ -175,8 +175,8 @@ func initializeServerConfig() (ServerConfig, error) {
 }
 
 func (sc *ServerConfig) readEnvironmentVariables() {
-	slog.Debug(">>loadConfiguration")
-	defer slog.Debug("<<loadConfiguration")
+	slog.Info(">>loadConfiguration")
+	defer slog.Info("<<loadConfiguration")
 
 	// load the environment
 	err := godotenv.Load()
@@ -209,7 +209,7 @@ func (sc *ServerConfig) readEnvironmentVariables() {
 	twilioFromPhone := os.Getenv("TWILIO_FROM_PHONE_NO")
 	twilioToPhone := os.Getenv("TWILIO_TO_PHONE_NO")
 	if len(twilioAccountSID) != 0 {
-		slog.Debug("Twilio account information present, configuring Notifier")
+		slog.Info("Twilio account information present, configuring Notifier")
 
 		twilioService, err := twilio.New(twilioAccountSID, twilioAuthToken, twilioFromPhone)
 		if err != nil {
@@ -231,8 +231,8 @@ func (sc *ServerConfig) readEnvironmentVariables() {
 
 // configureLogger will initialize the slog to stderr and save the log level so it can be set via API.
 func (sc *ServerConfig) configureLogger() {
-	slog.Debug(">>configureLogger")
-	defer slog.Debug("<<configureLogger")
+	slog.Info(">>configureLogger")
+	defer slog.Info("<<configureLogger")
 
 	// craete a variable to store the current log level
 	currentLevel := new(slog.LevelVar)
@@ -250,6 +250,7 @@ func (sc *ServerConfig) configureLogger() {
 	// by default we will write to stderr
 	logFile := os.Stderr
 	if len(sc.LogFileLocation) != 0 {
+		slog.Info("Save to log file", "file", sc.LogFileLocation)
 		logFile, err = os.OpenFile(sc.LogFileLocation, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			slog.Warn("Failed to open log file: %v", "error", err)

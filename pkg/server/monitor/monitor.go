@@ -16,8 +16,8 @@ import (
 
 // InitializeMonitorContext will initialize a new MonitorSync struct.
 func InitializeMonitorContext(notifier *notify.Notify, store MonitorStore, sensors sensor.Sensors) *MonitorContext {
-	slog.Debug(">>InitializeMonitorContext")
-	defer slog.Debug("<<InitializeMonitorContext")
+	slog.Info(">>InitializeMonitorContext")
+	defer slog.Info("<<InitializeMonitorContext")
 
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
@@ -40,16 +40,14 @@ func InitializeMonitorContext(notifier *notify.Notify, store MonitorStore, senso
 
 // CancelAndWait for the monitor sync routines to exit.
 func (ms *MonitorContext) CancelAndWait() {
+	slog.Info(">>CancelAndWait")
+	defer slog.Info("<<CancelAndWait")
+
 	// If the server stopped, cancel the monitor go routines
 	ms.monitorCancelFunc()
 
 	// wait until all go routines have exited
 	ms.wg.Wait()
-}
-
-// StartTemperatureMonitor will begin monitoring for the specificed temperature and notify the user when it is reached.
-func (ms *MonitorContext) StartTemperatureMonitor(targetTemperature float32) error {
-	return nil
 }
 
 // StartMonitorRoutines will start up the go routines that monitor the plunge
