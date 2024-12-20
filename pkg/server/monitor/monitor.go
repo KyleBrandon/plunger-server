@@ -23,14 +23,14 @@ func InitializeMonitorContext(notifier *notify.Notify, store MonitorStore, senso
 	ctx, cancel := context.WithCancel(context.Background())
 
 	mctx := MonitorContext{
-		wg:         &wg,
-		ctx:        ctx,
-		store:      store,
-		sensors:    sensors,
-		CancelFunc: cancel,
-		OzoneCh:    make(chan OzoneTask),
-		NotifyCh:   make(chan NotificationTask),
-		Notifier:   notifier,
+		wg:                &wg,
+		ctx:               ctx,
+		store:             store,
+		sensors:           sensors,
+		monitorCancelFunc: cancel,
+		OzoneCh:           make(chan OzoneTask),
+		NotifyCh:          make(chan NotificationTask),
+		Notifier:          notifier,
 	}
 
 	mctx.startMonitorRoutines()
@@ -41,10 +41,15 @@ func InitializeMonitorContext(notifier *notify.Notify, store MonitorStore, senso
 // CancelAndWait for the monitor sync routines to exit.
 func (ms *MonitorContext) CancelAndWait() {
 	// If the server stopped, cancel the monitor go routines
-	ms.CancelFunc()
+	ms.monitorCancelFunc()
 
 	// wait until all go routines have exited
 	ms.wg.Wait()
+}
+
+// StartTemperatureMonitor will begin monitoring for the specificed temperature and notify the user when it is reached.
+func (ms *MonitorContext) StartTemperatureMonitor(targetTemperature float32) error {
+	return nil
 }
 
 // StartMonitorRoutines will start up the go routines that monitor the plunge
@@ -95,9 +100,9 @@ func (mctx *MonitorContext) monitorOzone() {
 				// cancel the ozone generator
 				slog.Debug("OZONEACTION_STOP")
 				mctx.Lock()
-				if mctx.OzoneRunning {
+				if mctx.ozoneRunning {
 					slog.Debug("cancel ozone")
-					mctx.OzoneCancel()
+					mctx.ozoneCancel()
 				}
 				mctx.Unlock()
 			}
@@ -113,7 +118,7 @@ func (mctx *MonitorContext) startOzoneGenerator(duration int) error {
 	defer mctx.Unlock()
 
 	// is the ozone generator already running?
-	if mctx.OzoneRunning {
+	if mctx.ozoneRunning {
 		// TODO: deal with this better
 		slog.Error("ozone is already running")
 		return errors.New("ozone already running")
@@ -144,26 +149,22 @@ func (mctx *MonitorContext) startOzoneGenerator(duration int) error {
 
 	// create a context for the ozone goroutine with a hard timeout
 	ozoneCtx, cancel := context.WithTimeout(mctx.ctx, time.Duration(duration)*time.Minute)
-	mctx.OzoneCancel = cancel
-	mctx.OzoneRunning = true
+	mctx.ozoneCancel = cancel
+	mctx.ozoneRunning = true
 
-	go func() {
-		slog.Debug("Enter goroutine to monitor ozone")
-		defer slog.Debug("Exit goroutine to monitor ozone")
-
-		<-ozoneCtx.Done()
-		slog.Debug("Ozone generator was stopped")
-		mctx.stopOzoneGenerator()
-	}()
+	go mctx.waitForOzoneGeneratorToStop(ozoneCtx)
 
 	mctx.NotifyCh <- NotificationTask{Message: "Ozone generator was started"}
 
 	return nil
 }
 
-func (mctx *MonitorContext) stopOzoneGenerator() error {
+// waitForOzoneGeneratorToStop will wait on the ozoneCtx to close and then stop the ozone generator.
+// Once stopped, the duration will be saved and the user notified that it has stopped.
+func (mctx *MonitorContext) waitForOzoneGeneratorToStop(ozoneCtx context.Context) error {
 	slog.Debug(">>stopOzoneGenerator")
 	defer slog.Debug("<<stopOzoneGenerator")
+	<-ozoneCtx.Done()
 
 	// turn ozone off no matter what
 	err := mctx.sensors.TurnOzoneOff()
@@ -173,7 +174,7 @@ func (mctx *MonitorContext) stopOzoneGenerator() error {
 	}
 
 	mctx.Lock()
-	mctx.OzoneRunning = false
+	mctx.ozoneRunning = false
 	mctx.Unlock()
 
 	ozone, err := mctx.store.GetLatestOzoneEntry(mctx.ctx)
@@ -238,38 +239,65 @@ func (mctx *MonitorContext) monitorTemperatures() {
 			return
 
 		case <-ticker.C:
-
-			waterTemp := sql.NullString{
-				Valid: false,
-			}
-			roomTemp := sql.NullString{
-				Valid: false,
-			}
-
 			rt, wt := mctx.sensors.ReadRoomAndWaterTemperature()
-			if rt.Err == nil {
-				roomTemp.Valid = true
-				roomTemp.String = fmt.Sprintf("%f", rt.TemperatureF)
-			} else {
+			if rt.Err != nil {
 				slog.Error("failed to read the room temperature", "error", rt.Err)
 			}
 
-			if wt.Err == nil {
-				waterTemp.Valid = true
-				waterTemp.String = fmt.Sprintf("%f", wt.TemperatureF)
-			} else {
+			if wt.Err != nil {
 				slog.Error("failed to read the water temperature", "error", wt.Err)
 			}
 
-			arg := database.SaveTemperatureParams{
-				WaterTemp: waterTemp,
-				RoomTemp:  roomTemp,
+			mctx.saveCurrentTemperatures(rt, wt)
+
+			mctx.Lock()
+			if mctx.temperatureMonitoring && mctx.targetTemperature == float32(wt.TemperatureF) {
+				// notify  the user
+				mctx.NotifyCh <- NotificationTask{Message: fmt.Sprintf("Target temperature %v was reached", mctx.targetTemperature)}
+				mctx.temperatureMonitoring = false
 			}
-			_, err := mctx.store.SaveTemperature(mctx.ctx, arg)
-			if err != nil {
-				slog.Error("failed to save the room and water temperatures", "error", err)
+			mctx.Unlock()
+
+		case task, ok := <-mctx.TempMonitorCh:
+			if !ok {
+				slog.Error("The temperature notification channel was closed")
+				return
 			}
+
+			mctx.Lock()
+			mctx.targetTemperature = task.TargetTemperature
+			mctx.temperatureMonitoring = true
+			mctx.Unlock()
+
 		}
+	}
+}
+
+func (mctx *MonitorContext) saveCurrentTemperatures(rt sensor.TemperatureReading, wt sensor.TemperatureReading) {
+	waterTemp := sql.NullString{
+		Valid: false,
+	}
+	roomTemp := sql.NullString{
+		Valid: false,
+	}
+
+	if rt.Err == nil {
+		roomTemp.Valid = true
+		roomTemp.String = fmt.Sprintf("%f", rt.TemperatureF)
+	}
+
+	if wt.Err == nil {
+		waterTemp.Valid = true
+		waterTemp.String = fmt.Sprintf("%f", wt.TemperatureF)
+	}
+
+	arg := database.SaveTemperatureParams{
+		WaterTemp: waterTemp,
+		RoomTemp:  roomTemp,
+	}
+	_, err := mctx.store.SaveTemperature(mctx.ctx, arg)
+	if err != nil {
+		slog.Error("failed to save the room and water temperatures", "error", err)
 	}
 }
 

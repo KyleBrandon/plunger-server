@@ -72,6 +72,7 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: Move this to request body
 	durationStr := r.URL.Query().Get("duration")
 	if durationStr == "" {
 		durationStr = DefaultOzoneDurationMinutes

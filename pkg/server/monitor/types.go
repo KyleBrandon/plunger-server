@@ -17,15 +17,31 @@ const (
 )
 
 type (
+	// OzoneAction indicates if the ozone generator should start or stop.
+	//  Values can be:
+	//      OZONEACTION_START
+	//      OZONEACTION_STOP
 	OzoneAction int
 
+	// OzoneTask is a struct used to contain the information needed to run the ozone generator for a set duration.
 	OzoneTask struct {
-		Action   OzoneAction
+		Action OzoneAction
+
+		// Duration to run the ozone generator in minutes.
 		Duration int
 	}
 
+	// NotificationTask is a struct used to send messages to a destination.
 	NotificationTask struct {
+		// Message to send to the consumer.
 		Message string
+	}
+
+	// TemperatureTask will start monitoring the temperature indicated.
+	// If another TemperatureTask is received while already monitoring, it will replace the current monitor.
+	// Once the temperature has been reached the user will be notified once.
+	TemperatureTask struct {
+		TargetTemperature float32
 	}
 
 	MonitorContext struct {
@@ -35,12 +51,22 @@ type (
 		store   MonitorStore
 		sensors sensor.Sensors
 
-		CancelFunc   context.CancelFunc
-		OzoneRunning bool
-		OzoneCh      chan OzoneTask
-		OzoneCancel  context.CancelFunc
-		NotifyCh     chan NotificationTask
-		Notifier     *notify.Notify
+		// monitorCancelFunc for all monitoring activities.
+		monitorCancelFunc context.CancelFunc
+
+		// OzoneCh is a channel that receives an OzoneTask to start or stop the ozone generator.
+		OzoneCh chan OzoneTask
+		// ozoneCancel is the cancel function to stop the ozone generator.
+		ozoneCancel context.CancelFunc
+		// ozoneRunning indicates if the ozone generator is currently running.
+		ozoneRunning bool
+
+		NotifyCh chan NotificationTask // Channel to track notification tasks
+		Notifier *notify.Notify        // Struct to manage the notification services
+
+		TempMonitorCh         chan TemperatureTask // Channel to track temperature monitoring requests
+		targetTemperature     float32              // TempTarget indicate the target temperature to monitor for
+		temperatureMonitoring bool
 	}
 
 	MonitorStore interface {

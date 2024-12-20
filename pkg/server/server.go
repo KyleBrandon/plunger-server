@@ -17,7 +17,7 @@ import (
 	"github.com/KyleBrandon/plunger-server/pkg/server/leaks"
 	"github.com/KyleBrandon/plunger-server/pkg/server/monitor"
 	"github.com/KyleBrandon/plunger-server/pkg/server/ozone"
-	"github.com/KyleBrandon/plunger-server/pkg/server/plunges/v2"
+	"github.com/KyleBrandon/plunger-server/pkg/server/plunges/v1"
 	"github.com/KyleBrandon/plunger-server/pkg/server/pump"
 	"github.com/KyleBrandon/plunger-server/pkg/server/status"
 	"github.com/KyleBrandon/plunger-server/pkg/server/temperatures"
@@ -75,10 +75,6 @@ func InitializeServer() error {
 		return err
 	}
 
-	// TODO: close these when the server exists (similar to MonitorContext)
-	defer config.DBConnection.Close()
-	defer config.LogFile.Close()
-
 	config.mux = http.NewServeMux()
 
 	config.mctx = monitor.InitializeMonitorContext(config.Notifier, config.Queries, config.Sensors)
@@ -86,7 +82,7 @@ func InitializeServer() error {
 	healthHandler := health.NewHandler(config.LoggerLevel, config.Logger)
 	healthHandler.RegisterRoutes(config.mux)
 
-	temperatureHandler := temperatures.NewHandler(config.Sensors)
+	temperatureHandler := temperatures.NewHandler(config.mctx, config.Sensors)
 	temperatureHandler.RegisterRoutes(config.mux)
 
 	userHandler := users.NewHandler(config.Queries)
@@ -134,6 +130,10 @@ func (config *ServerConfig) runServer() {
 	if err := server.ListenAndServe(); err != nil {
 		slog.Error("Server failed", "error", err)
 	}
+
+	// TODO: close these when the server exists (similar to MonitorContext)
+	config.DBConnection.Close()
+	config.LogFile.Close()
 
 	config.mctx.CancelAndWait()
 }
@@ -229,6 +229,7 @@ func (sc *ServerConfig) readEnvironmentVariables() {
 	sc.UseMockSensor = cmdLineFlagMockSensor
 }
 
+// configureLogger will initialize the slog to stderr and save the log level so it can be set via API.
 func (sc *ServerConfig) configureLogger() {
 	slog.Debug(">>configureLogger")
 	defer slog.Debug("<<configureLogger")

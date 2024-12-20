@@ -20,7 +20,7 @@ func TestPlungesGet(t *testing.T) {
 
 		handler := NewHandler(&plungeStore, &sensors)
 		plungeStore.plunge = database.Plunge{}
-		rr := utils.TestRequest(t, http.MethodGet, "/v2/plunges/status", nil, handler.handlePlungesGet)
+		rr := utils.TestRequest(t, http.MethodGet, "/v1/plunges/status", nil, handler.handlePlungesGet)
 		utils.TestExpectedStatus(t, rr, http.StatusOK)
 		// TODO: check for a valid PlungeResponse
 		// utils.TestExpectedMessage(t, rr, "No active timer")
@@ -34,7 +34,7 @@ func TestPlungesGet(t *testing.T) {
 
 		plungeStore.plungeID = uuid.New()
 		plungeStore.plunge.Running = true
-		rr := utils.TestRequest(t, http.MethodGet, "/v2/plunges/status", nil, handler.handlePlungesGet)
+		rr := utils.TestRequest(t, http.MethodGet, "/v1/plunges/status", nil, handler.handlePlungesGet)
 		utils.TestExpectedStatus(t, rr, http.StatusOK)
 	})
 }
@@ -46,7 +46,7 @@ func TestPlungeStart(t *testing.T) {
 
 		handler := NewHandler(&plungeStore, &sensors)
 
-		rr := utils.TestRequest(t, http.MethodPost, "/v2/plunges/start?duration=abcd", nil, handler.handlePlungesStart)
+		rr := utils.TestRequest(t, http.MethodPost, "/v1/plunges/start?duration=abcd", nil, handler.handlePlungesStart)
 		utils.TestExpectedStatus(t, rr, http.StatusBadRequest)
 		utils.TestExpectedMessage(t, rr, "Invalid 'duration' parameter")
 	})
@@ -57,7 +57,7 @@ func TestPlungeStart(t *testing.T) {
 
 		handler := NewHandler(&plungeStore, &sensors)
 
-		rr := utils.TestRequest(t, http.MethodPost, "/v2/plunges/start", nil, handler.handlePlungesStart)
+		rr := utils.TestRequest(t, http.MethodPost, "/v1/plunges/start", nil, handler.handlePlungesStart)
 		utils.TestExpectedStatus(t, rr, http.StatusCreated)
 
 		var resp PlungeResponse
@@ -76,7 +76,7 @@ func TestPlungeStart(t *testing.T) {
 
 		handler := NewHandler(&plungeStore, &sensors)
 
-		rr := utils.TestRequest(t, http.MethodPost, "/v2/plunges/start?duration=240", nil, handler.handlePlungesStart)
+		rr := utils.TestRequest(t, http.MethodPost, "/v1/plunges/start?duration=240", nil, handler.handlePlungesStart)
 		utils.TestExpectedStatus(t, rr, http.StatusCreated)
 
 		var resp PlungeResponse
