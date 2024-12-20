@@ -26,7 +26,7 @@ func NewHandler(store StatusStore, sensors sensor.Sensors, originPatterns []stri
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/v2/status/ws", h.handleStatusWS)
+	mux.HandleFunc("/v1/status/ws", h.handleStatusWS)
 }
 
 func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
