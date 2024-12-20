@@ -62,7 +62,7 @@ type (
 		ozoneRunning bool
 
 		NotifyCh chan NotificationTask // Channel to track notification tasks
-		Notifier *notify.Notify        // Struct to manage the notification services
+		notifier *notify.Notify        // Struct to manage the notification services
 
 		TempMonitorCh         chan TemperatureTask // Channel to track temperature monitoring requests
 		targetTemperature     float32              // TempTarget indicate the target temperature to monitor for

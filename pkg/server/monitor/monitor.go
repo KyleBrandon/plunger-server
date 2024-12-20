@@ -30,7 +30,8 @@ func InitializeMonitorContext(notifier *notify.Notify, store MonitorStore, senso
 		monitorCancelFunc: cancel,
 		OzoneCh:           make(chan OzoneTask),
 		NotifyCh:          make(chan NotificationTask),
-		Notifier:          notifier,
+		notifier:          notifier,
+		TempMonitorCh:     make(chan TemperatureTask),
 	}
 
 	mctx.startMonitorRoutines()
@@ -378,8 +379,8 @@ func (mctx *MonitorContext) monitorNotifications() {
 			slog.Info(task.Message)
 
 			// Send the SMS
-			if mctx.Notifier != nil {
-				err := mctx.Notifier.Send(
+			if mctx.notifier != nil {
+				err := mctx.notifier.Send(
 					context.Background(),
 					"Plunger Notification",
 					task.Message,
