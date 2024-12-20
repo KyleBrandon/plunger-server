@@ -75,6 +75,10 @@ func InitializeServer() error {
 		return err
 	}
 
+	// TODO: close these when the server exists (similar to MonitorContext)
+	defer config.DBConnection.Close()
+	defer config.LogFile.Close()
+
 	config.mux = http.NewServeMux()
 
 	config.mctx = monitor.InitializeMonitorContext(config.Notifier, config.Queries, config.Sensors)
@@ -130,10 +134,6 @@ func (config *ServerConfig) runServer() {
 	if err := server.ListenAndServe(); err != nil {
 		slog.Error("Server failed", "error", err)
 	}
-
-	// TODO: close these when the server exists (similar to MonitorContext)
-	config.DBConnection.Close()
-	config.LogFile.Close()
 
 	config.mctx.CancelAndWait()
 }
