@@ -30,7 +30,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 }
 
 func (h *Handler) handleStatusWS(w http.ResponseWriter, r *http.Request) {
-	slog.Info(">>handleWS: new incoming connection")
+	slog.Debug(">>handleWS: new incoming connection")
 	defer slog.Debug("<<handleWS")
 
 	opts := &websocket.AcceptOptions{

@@ -23,14 +23,14 @@ func InitializeMonitorContext(notifier *notify.Notify, store MonitorStore, senso
 	ctx, cancel := context.WithCancel(context.Background())
 
 	mctx := MonitorContext{
-		wg:         &wg,
-		ctx:        ctx,
-		store:      store,
-		sensors:    sensors,
-		CancelFunc: cancel,
-		OzoneCh:    make(chan OzoneTask),
-		NotifyCh:   make(chan NotificationTask),
-		Notifier:   notifier,
+		wg:                &wg,
+		ctx:               ctx,
+		store:             store,
+		sensors:           sensors,
+		monitorCancelFunc: cancel,
+		OzoneCh:           make(chan OzoneTask),
+		NotifyCh:          make(chan NotificationTask),
+		notifier:          notifier,
 	}
 
 	mctx.startMonitorRoutines()
@@ -41,7 +41,7 @@ func InitializeMonitorContext(notifier *notify.Notify, store MonitorStore, senso
 // CancelAndWait for the monitor sync routines to exit.
 func (ms *MonitorContext) CancelAndWait() {
 	// If the server stopped, cancel the monitor go routines
-	ms.CancelFunc()
+	ms.monitorCancelFunc()
 
 	// wait until all go routines have exited
 	ms.wg.Wait()
@@ -95,9 +95,9 @@ func (mctx *MonitorContext) monitorOzone() {
 				// cancel the ozone generator
 				slog.Debug("OZONEACTION_STOP")
 				mctx.Lock()
-				if mctx.OzoneRunning {
+				if mctx.ozoneRunning {
 					slog.Debug("cancel ozone")
-					mctx.OzoneCancel()
+					mctx.ozoneCancelFunc()
 				}
 				mctx.Unlock()
 			}
@@ -113,7 +113,7 @@ func (mctx *MonitorContext) startOzoneGenerator(duration int) error {
 	defer mctx.Unlock()
 
 	// is the ozone generator already running?
-	if mctx.OzoneRunning {
+	if mctx.ozoneRunning {
 		// TODO: deal with this better
 		slog.Error("ozone is already running")
 		return errors.New("ozone already running")
@@ -144,8 +144,8 @@ func (mctx *MonitorContext) startOzoneGenerator(duration int) error {
 
 	// create a context for the ozone goroutine with a hard timeout
 	ozoneCtx, cancel := context.WithTimeout(mctx.ctx, time.Duration(duration)*time.Minute)
-	mctx.OzoneCancel = cancel
-	mctx.OzoneRunning = true
+	mctx.ozoneCancelFunc = cancel
+	mctx.ozoneRunning = true
 
 	go func() {
 		slog.Debug("Enter goroutine to monitor ozone")
@@ -173,7 +173,7 @@ func (mctx *MonitorContext) stopOzoneGenerator() error {
 	}
 
 	mctx.Lock()
-	mctx.OzoneRunning = false
+	mctx.ozoneRunning = false
 	mctx.Unlock()
 
 	ozone, err := mctx.store.GetLatestOzoneEntry(mctx.ctx)
@@ -239,37 +239,45 @@ func (mctx *MonitorContext) monitorTemperatures() {
 
 		case <-ticker.C:
 
-			waterTemp := sql.NullString{
-				Valid: false,
-			}
-			roomTemp := sql.NullString{
-				Valid: false,
-			}
-
 			rt, wt := mctx.sensors.ReadRoomAndWaterTemperature()
-			if rt.Err == nil {
-				roomTemp.Valid = true
-				roomTemp.String = fmt.Sprintf("%f", rt.TemperatureF)
-			} else {
+			if rt.Err != nil {
 				slog.Error("failed to read the room temperature", "error", rt.Err)
 			}
 
-			if wt.Err == nil {
-				waterTemp.Valid = true
-				waterTemp.String = fmt.Sprintf("%f", wt.TemperatureF)
-			} else {
+			if wt.Err != nil {
 				slog.Error("failed to read the water temperature", "error", wt.Err)
 			}
 
-			arg := database.SaveTemperatureParams{
-				WaterTemp: waterTemp,
-				RoomTemp:  roomTemp,
-			}
-			_, err := mctx.store.SaveTemperature(mctx.ctx, arg)
-			if err != nil {
-				slog.Error("failed to save the room and water temperatures", "error", err)
-			}
+			mctx.saveCurrentTemperatures(rt, wt)
 		}
+	}
+}
+
+func (mctx *MonitorContext) saveCurrentTemperatures(rt sensor.TemperatureReading, wt sensor.TemperatureReading) {
+	waterTemp := sql.NullString{
+		Valid: false,
+	}
+	roomTemp := sql.NullString{
+		Valid: false,
+	}
+
+	if rt.Err == nil {
+		roomTemp.Valid = true
+		roomTemp.String = fmt.Sprintf("%f", rt.TemperatureF)
+	}
+
+	if wt.Err == nil {
+		waterTemp.Valid = true
+		waterTemp.String = fmt.Sprintf("%f", wt.TemperatureF)
+	}
+
+	arg := database.SaveTemperatureParams{
+		WaterTemp: waterTemp,
+		RoomTemp:  roomTemp,
+	}
+	_, err := mctx.store.SaveTemperature(mctx.ctx, arg)
+	if err != nil {
+		slog.Error("failed to save the room and water temperatures", "error", err)
 	}
 }
 
@@ -352,8 +360,8 @@ func (mctx *MonitorContext) monitorNotifications() {
 			slog.Info(task.Message)
 
 			// Send the SMS
-			if mctx.Notifier != nil {
-				err := mctx.Notifier.Send(
+			if mctx.notifier != nil {
+				err := mctx.notifier.Send(
 					context.Background(),
 					"Plunger Notification",
 					task.Message,
