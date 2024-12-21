@@ -17,7 +17,7 @@ import (
 	"github.com/KyleBrandon/plunger-server/pkg/server/leaks"
 	"github.com/KyleBrandon/plunger-server/pkg/server/monitor"
 	"github.com/KyleBrandon/plunger-server/pkg/server/ozone"
-	"github.com/KyleBrandon/plunger-server/pkg/server/plunges/v2"
+	"github.com/KyleBrandon/plunger-server/pkg/server/plunges"
 	"github.com/KyleBrandon/plunger-server/pkg/server/pump"
 	"github.com/KyleBrandon/plunger-server/pkg/server/status"
 	"github.com/KyleBrandon/plunger-server/pkg/server/temperatures"
@@ -86,7 +86,7 @@ func InitializeServer() error {
 	healthHandler := health.NewHandler(config.LoggerLevel, config.Logger)
 	healthHandler.RegisterRoutes(config.mux)
 
-	temperatureHandler := temperatures.NewHandler(config.Sensors)
+	temperatureHandler := temperatures.NewHandler(config.mctx, config.Sensors)
 	temperatureHandler.RegisterRoutes(config.mux)
 
 	userHandler := users.NewHandler(config.Queries)
@@ -104,7 +104,7 @@ func InitializeServer() error {
 	plungesHandler := plunges.NewHandler(config.Queries, config.Sensors)
 	plungesHandler.RegisterRoutes(config.mux)
 
-	statusHandler := status.NewHandler(config.Queries, config.Sensors, config.OriginPatterns)
+	statusHandler := status.NewHandler(config.mctx, config.Queries, config.Sensors, config.OriginPatterns)
 	statusHandler.RegisterRoutes(config.mux)
 
 	filterHandler := filters.NewHandler(config.Queries)

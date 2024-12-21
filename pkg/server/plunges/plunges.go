@@ -23,9 +23,9 @@ func NewHandler(store PlungeStore, sensors sensor.Sensors) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /v2/plunges/status", h.handlePlungesGet)
-	mux.HandleFunc("POST /v2/plunges/start", h.handlePlungesStart)
-	mux.HandleFunc("PUT /v2/plunges/stop", h.handlePlungesStop)
+	mux.HandleFunc("GET /v1/plunges/status", h.handlePlungesGet)
+	mux.HandleFunc("POST /v1/plunges/start", h.handlePlungesStart)
+	mux.HandleFunc("PUT /v1/plunges/stop", h.handlePlungesStop)
 }
 
 func (h *Handler) handlePlungesGet(w http.ResponseWriter, r *http.Request) {
