@@ -238,6 +238,7 @@ func (mctx *MonitorContext) monitorTemperatures() {
 			return
 
 		case <-ticker.C:
+			slog.Info("Check temperature")
 
 			rt, wt := mctx.sensors.ReadRoomAndWaterTemperature()
 			if rt.Err != nil {
@@ -265,6 +266,7 @@ func (mctx *MonitorContext) monitorTemperatures() {
 			mctx.Unlock()
 
 		case task, ok := <-mctx.TempMonitorCh:
+			slog.Info("Received temperure task")
 			if !ok {
 				slog.Error("The temperature notification channel was closed")
 				return
