@@ -3,7 +3,6 @@ package monitor
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -96,7 +95,7 @@ func (mctx *MonitorContext) monitorOzone() {
 				// cancel the ozone generator
 				slog.Debug("OZONEACTION_STOP")
 				mctx.Lock()
-				if mctx.ozoneRunning {
+				if mctx.OzoneRunning {
 					slog.Debug("cancel ozone")
 					mctx.ozoneCancelFunc()
 				}
@@ -106,7 +105,7 @@ func (mctx *MonitorContext) monitorOzone() {
 	}
 }
 
-func (mctx *MonitorContext) startOzoneGenerator(duration int) error {
+func (mctx *MonitorContext) startOzoneGenerator(duration int) {
 	slog.Debug(">>startOzoneGenerator")
 	defer slog.Debug("<<startOzoneGenerator")
 
@@ -114,10 +113,9 @@ func (mctx *MonitorContext) startOzoneGenerator(duration int) error {
 	defer mctx.Unlock()
 
 	// is the ozone generator already running?
-	if mctx.ozoneRunning {
-		// TODO: deal with this better
-		slog.Error("ozone is already running")
-		return errors.New("ozone already running")
+	if mctx.OzoneRunning {
+		slog.Warn("ozone is already running")
+		return
 	}
 
 	startTime := sql.NullTime{
@@ -133,33 +131,30 @@ func (mctx *MonitorContext) startOzoneGenerator(duration int) error {
 	_, err := mctx.store.StartOzoneGenerator(mctx.ctx, args)
 	if err != nil {
 		slog.Error("failed to update database with ozone start", "error", err)
-		return err
+		return
 	}
 
 	err = mctx.sensors.TurnOzoneOn()
 	if err != nil {
 		mctx.setOzoneErrorMessage(mctx.ctx, "failed to turn on ozone generator", err)
-
-		return err
+		return
 	}
 
 	// create a context for the ozone goroutine with a hard timeout
 	ozoneCtx, cancel := context.WithTimeout(mctx.ctx, time.Duration(duration)*time.Minute)
 	mctx.ozoneCancelFunc = cancel
-	mctx.ozoneRunning = true
+	mctx.OzoneRunning = true
 
 	go func() {
 		slog.Debug("Enter goroutine to monitor ozone")
 		defer slog.Debug("Exit goroutine to monitor ozone")
+		defer mctx.ozoneCancelFunc()
 
 		<-ozoneCtx.Done()
-		slog.Debug("Ozone generator was stopped")
 		mctx.stopOzoneGenerator()
 	}()
 
 	mctx.NotifyCh <- NotificationTask{Message: "Ozone generator was started"}
-
-	return nil
 }
 
 func (mctx *MonitorContext) stopOzoneGenerator() error {
@@ -174,7 +169,7 @@ func (mctx *MonitorContext) stopOzoneGenerator() error {
 	}
 
 	mctx.Lock()
-	mctx.ozoneRunning = false
+	mctx.OzoneRunning = false
 	mctx.Unlock()
 
 	ozone, err := mctx.store.GetLatestOzoneEntry(mctx.ctx)

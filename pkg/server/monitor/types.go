@@ -55,7 +55,7 @@ type (
 
 		OzoneCh         chan OzoneTask // OzoneCh is a channel that receives an OzoneTask to start or stop the ozone generator.
 		ozoneCancelFunc context.CancelFunc
-		ozoneRunning    bool
+		OzoneRunning    bool
 
 		NotifyCh chan NotificationTask // Channel to track notification tasks
 		notifier *notify.Notify
