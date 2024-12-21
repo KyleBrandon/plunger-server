@@ -31,6 +31,7 @@ func InitializeMonitorContext(notifier *notify.Notify, store MonitorStore, senso
 		OzoneCh:           make(chan OzoneTask),
 		NotifyCh:          make(chan NotificationTask),
 		notifier:          notifier,
+		TempMonitorCh:     make(chan TemperatureTask),
 	}
 
 	mctx.startMonitorRoutines()
