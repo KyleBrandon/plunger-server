@@ -251,10 +251,16 @@ func (mctx *MonitorContext) monitorTemperatures() {
 			mctx.saveCurrentTemperatures(rt, wt)
 
 			mctx.Lock()
-			if mctx.temperatureMonitoring && mctx.targetTemperature == float32(wt.TemperatureF) {
-				// notify  the user
-				mctx.NotifyCh <- NotificationTask{Message: fmt.Sprintf("Target temperature %v was reached", mctx.targetTemperature)}
-				mctx.temperatureMonitoring = false
+			if mctx.temperatureMonitoring {
+				lowRange := mctx.targetTemperature - 0.5
+				highRange := mctx.targetTemperature + 0.5
+				if wt.TemperatureF >= lowRange && wt.TemperatureF <= highRange {
+					slog.Info("Temperature in range", "target", mctx.targetTemperature, "lowRange", lowRange, "highRange", highRange)
+					// notify  the user
+					mctx.NotifyCh <- NotificationTask{Message: fmt.Sprintf("Target temperature %v was reached", mctx.targetTemperature)}
+					mctx.temperatureMonitoring = false
+				}
+
 			}
 			mctx.Unlock()
 
@@ -264,6 +270,7 @@ func (mctx *MonitorContext) monitorTemperatures() {
 				return
 			}
 
+			slog.Info("Monitor temperature", "temperature", task.TargetTemperature)
 			mctx.Lock()
 			mctx.targetTemperature = task.TargetTemperature
 			mctx.temperatureMonitoring = true

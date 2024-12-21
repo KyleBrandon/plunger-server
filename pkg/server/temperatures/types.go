@@ -21,6 +21,6 @@ type (
 	}
 
 	TemperatureNotifyRequest struct {
-		TargetTemperature float32 `json:"temperature_target"`
+		TargetTemperature float64 `json:"temperature_target"`
 	}
 )

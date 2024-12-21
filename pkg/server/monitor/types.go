@@ -41,7 +41,7 @@ type (
 	// If another TemperatureTask is received while already monitoring, it will replace the current monitor.
 	// Once the temperature has been reached the user will be notified once.
 	TemperatureTask struct {
-		TargetTemperature float32
+		TargetTemperature float64
 	}
 
 	MonitorContext struct {
@@ -61,7 +61,7 @@ type (
 		notifier *notify.Notify
 
 		TempMonitorCh         chan TemperatureTask // Channel to track temperature monitoring requests
-		targetTemperature     float32
+		targetTemperature     float64
 		temperatureMonitoring bool
 	}
 

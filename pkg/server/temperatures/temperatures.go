@@ -37,6 +37,9 @@ func (h *Handler) handlerTemperaturesGet(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *Handler) handerTemperatureNotify(w http.ResponseWriter, r *http.Request) {
+	slog.Info(">>handlerTemperatureNotify")
+	defer slog.Info("<<handlerTemperatureNotify")
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusBadRequest, "Invalid body for temperature notification", err)
@@ -51,6 +54,7 @@ func (h *Handler) handerTemperatureNotify(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	slog.Info("Start monitoring temperature", "temperature", tnr.TargetTemperature)
 	h.mctx.TempMonitorCh <- monitor.TemperatureTask{TargetTemperature: tnr.TargetTemperature}
 
 	utils.RespondWithNoContent(w, http.StatusCreated)
