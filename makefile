@@ -2,13 +2,13 @@ build:
 	@go build -o ./bin/plunger-server ./cmd/plunger-server
 
 test:
-	@go test -v ./...
+	@go test ./...
 	
 run: build
 	@./bin/plunge-server
 
 migrate-up:
-	@goose postgres postgres://postgres:postgres@10.0.4.40:5444/plunger up
+	@./scripts/goose.sh
 
 migrate-down:
-	@goose postgres postgres://postgres:postgres@10.0.4.40:5444/plunger down
+	@./scripts/goose-down.sh
