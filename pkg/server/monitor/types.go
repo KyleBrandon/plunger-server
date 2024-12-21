@@ -61,7 +61,9 @@ type (
 		notifier *notify.Notify
 
 		TempMonitorCh         chan TemperatureTask // Channel to track temperature monitoring requests
-		targetTemperature     float64
+		TargetTemperature     float64
+		WaterTemperature      float64
+		RoomTemperature       float64
 		temperatureMonitoring bool
 	}
 

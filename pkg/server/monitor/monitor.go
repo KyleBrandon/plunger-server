@@ -239,8 +239,6 @@ func (mctx *MonitorContext) monitorTemperatures() {
 			return
 
 		case <-ticker.C:
-			slog.Info("Check temperature")
-
 			rt, wt := mctx.sensors.ReadRoomAndWaterTemperature()
 			if rt.Err != nil {
 				slog.Error("failed to read the room temperature", "error", rt.Err)
@@ -253,13 +251,16 @@ func (mctx *MonitorContext) monitorTemperatures() {
 			mctx.saveCurrentTemperatures(rt, wt)
 
 			mctx.Lock()
+			mctx.WaterTemperature = wt.TemperatureF
+			mctx.RoomTemperature = rt.TemperatureF
+			// are we monitoring for a target temperature?
 			if mctx.temperatureMonitoring {
-				lowRange := mctx.targetTemperature - 0.5
-				highRange := mctx.targetTemperature + 0.5
+				lowRange := mctx.TargetTemperature - 0.5
+				highRange := mctx.TargetTemperature + 0.5
 				if wt.TemperatureF >= lowRange && wt.TemperatureF <= highRange {
-					slog.Info("Temperature in range", "target", mctx.targetTemperature, "lowRange", lowRange, "highRange", highRange)
+					slog.Debug("Temperature in range", "target", mctx.TargetTemperature, "lowRange", lowRange, "highRange", highRange)
 					// notify  the user
-					mctx.NotifyCh <- NotificationTask{Message: fmt.Sprintf("Target temperature %v was reached", mctx.targetTemperature)}
+					mctx.NotifyCh <- NotificationTask{Message: fmt.Sprintf("Target temperature %v was reached", mctx.TargetTemperature)}
 					mctx.temperatureMonitoring = false
 				}
 
@@ -273,9 +274,9 @@ func (mctx *MonitorContext) monitorTemperatures() {
 				return
 			}
 
-			slog.Info("Monitor temperature", "temperature", task.TargetTemperature)
+			slog.Debug("Monitor temperature", "temperature", task.TargetTemperature)
 			mctx.Lock()
-			mctx.targetTemperature = task.TargetTemperature
+			mctx.TargetTemperature = task.TargetTemperature
 			mctx.temperatureMonitoring = true
 			mctx.Unlock()
 		}
@@ -370,14 +371,14 @@ func (mctx *MonitorContext) monitorLeaks() {
 }
 
 func (mctx *MonitorContext) monitorNotifications() {
-	slog.Info(">>monitorNotifications")
-	defer slog.Info("<<monitorNotifications")
+	slog.Debug(">>monitorNotifications")
+	defer slog.Debug("<<monitorNotifications")
 
 	defer mctx.wg.Done()
 	for {
 		select {
 		case <-mctx.ctx.Done():
-			slog.Info("monitorNotifications: context done")
+			slog.Debug("monitorNotifications: context done")
 			return
 
 		case task, ok := <-mctx.NotifyCh:
@@ -385,8 +386,6 @@ func (mctx *MonitorContext) monitorNotifications() {
 				slog.Error("The notification channel was closed")
 				return
 			}
-
-			slog.Info(task.Message)
 
 			// Send the SMS
 			if mctx.notifier != nil {
