@@ -31,10 +31,24 @@ type (
 		Duration int
 	}
 
+	OzoneContext struct {
+		OzoneCh         chan OzoneTask // OzoneCh is a channel that receives an OzoneTask to start or stop the ozone generator.
+		ozoneCancelFunc context.CancelFunc
+		Running         bool
+		Duration        int
+		StartTime       time.Time
+		EndTime         time.Time
+	}
+
 	// NotificationTask is a struct used to send messages to a destination.
 	NotificationTask struct {
 		// Message to send to the consumer.
 		Message string
+	}
+
+	NotificationContext struct {
+		NotifyCh chan NotificationTask // Channel to track notification tasks
+		notifier *notify.Notify
 	}
 
 	// TemperatureTask will start monitoring the temperature indicated.
@@ -44,27 +58,35 @@ type (
 		TargetTemperature float64
 	}
 
-	MonitorContext struct {
-		sync.Mutex
-		wg      *sync.WaitGroup
-		ctx     context.Context
-		store   MonitorStore
-		sensors sensor.Sensors
-
-		monitorCancelFunc context.CancelFunc
-
-		OzoneCh         chan OzoneTask // OzoneCh is a channel that receives an OzoneTask to start or stop the ozone generator.
-		ozoneCancelFunc context.CancelFunc
-		OzoneRunning    bool
-
-		NotifyCh chan NotificationTask // Channel to track notification tasks
-		notifier *notify.Notify
-
-		TempMonitorCh         chan TemperatureTask // Channel to track temperature monitoring requests
+	// TemperatureContext contains information on the current temperures and monitoring
+	TemperatureContext struct {
+		// Channel to track temperature monitoring requests
+		TempMonitorCh         chan TemperatureTask
 		TargetTemperature     float64
 		WaterTemperature      float64
 		RoomTemperature       float64
-		temperatureMonitoring bool
+		TemperatureMonitoring bool
+	}
+
+	PlungeContext struct {
+		sync.Mutex
+		WaterTempTotal float64
+		RoomTempTotal  float64
+		TempReadCount  int64
+	}
+
+	MonitorContext struct {
+		sync.Mutex
+		wg                *sync.WaitGroup
+		ctx               context.Context
+		store             MonitorStore
+		sensors           sensor.Sensors
+		monitorCancelFunc context.CancelFunc
+
+		Ozone        OzoneContext
+		Temperature  TemperatureContext
+		Plunge       PlungeContext
+		Notification NotificationContext
 	}
 
 	MonitorStore interface {

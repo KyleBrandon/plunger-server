@@ -43,13 +43,28 @@ type (
 	}
 
 	Sensors interface {
+		// ReadRoomAndWaterTemperature will read just the temperature sensors named 'Room' and 'Water'.
 		ReadRoomAndWaterTemperature() (TemperatureReading, TemperatureReading)
+		// ReadTemperatures will read all temperature sensors.
+		//  returns a slice of `TemperatureReading`
 		ReadTemperatures() []TemperatureReading
+		// IsLeakPresent will determine the leak sensor detects water
 		IsLeakPresent() (bool, error)
+		// TurnOzoneOn will start the ozone generator.
 		TurnOzoneOn() error
+		// TurnOzoneOff will stop the ozone generator.
+		//  returns error if the sensor could not be read.
 		TurnOzoneOff() error
+		// IsPumpOn will check if the pump currently has power.
+		//  returns true if there is power to the pump
+		//  returns false if t here is no power to the pump
+		//  returns error if the sensor could not be read.
 		IsPumpOn() (bool, error)
+		// TurnPumpOn will turn power on to the pump.
+		//  returns error if the sensor could not be read.
 		TurnPumpOn() error
+		// TurnPumpOff will turn power off to the pump.
+		//  returns error if the sensor could not be read.
 		TurnPumpOff() error
 	}
 

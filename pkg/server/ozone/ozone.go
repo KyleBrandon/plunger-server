@@ -83,7 +83,8 @@ func (h *Handler) handlerOzoneStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.mctx.OzoneCh <- monitor.OzoneTask{Action: monitor.OZONEACTION_START, Duration: duration}
+	// notify the ozone channel to start the generator
+	h.mctx.Ozone.OzoneCh <- monitor.OzoneTask{Action: monitor.OZONEACTION_START, Duration: duration}
 
 	utils.RespondWithNoContent(w, http.StatusCreated)
 }
@@ -93,7 +94,8 @@ func (h *Handler) handlerOzoneStop(w http.ResponseWriter, r *http.Request) {
 	slog.Debug(">>handlerStopOzone")
 	defer slog.Debug("<<handlerStopOzone")
 
-	h.mctx.OzoneCh <- monitor.OzoneTask{Action: monitor.OZONEACTION_STOP}
+	// notify the ozone channel to stop the generator
+	h.mctx.Ozone.OzoneCh <- monitor.OzoneTask{Action: monitor.OZONEACTION_STOP}
 
 	utils.RespondWithNoContent(w, http.StatusNoContent)
 }

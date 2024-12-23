@@ -20,7 +20,6 @@ func NewHandler(mctx *monitor.MonitorContext, store StatusStore, sensors sensor.
 		mctx,
 		store,
 		sensors,
-		PlungeState{},
 		originPatterns,
 	}
 
@@ -73,8 +72,8 @@ func (h *Handler) monitorStatus(ctx context.Context, c *websocket.Conn) {
 			errorMessages := make([]string, 0)
 
 			h.mctx.Lock()
-			roomTemp := h.mctx.RoomTemperature
-			waterTemp := h.mctx.WaterTemperature
+			roomTemp := h.mctx.Temperature.RoomTemperature
+			waterTemp := h.mctx.Temperature.WaterTemperature
 
 			h.mctx.Unlock()
 
@@ -93,7 +92,7 @@ func (h *Handler) monitorStatus(ctx context.Context, c *websocket.Conn) {
 				errorMessages = append(errorMessages, err.Error())
 			}
 
-			os, err := h.buildOzoneStatus(ctx)
+			os, err := h.buildOzoneStatus()
 			if err != nil {
 				errorMessages = append(errorMessages, err.Error())
 			}
@@ -103,15 +102,19 @@ func (h *Handler) monitorStatus(ctx context.Context, c *websocket.Conn) {
 				errorMessages = append(errorMessages, err.Error())
 			}
 
+			ts, err := h.buildTemperatureStatus(roomTemp, waterTemp)
+			if err != nil {
+				errorMessages = append(errorMessages, err.Error())
+			}
+
 			status := SystemStatus{
-				ErrorMessages: errorMessages,
-				PlungeStatus:  ps,
-				OzoneStatus:   os,
-				WaterTemp:     waterTemp,
-				RoomTemp:      roomTemp,
-				LeakDetected:  leakDetected,
-				PumpOn:        pumpIsOn,
-				FilterStatus:  fs,
+				ErrorMessages:     errorMessages,
+				TemperatureStatus: ts,
+				PlungeStatus:      ps,
+				OzoneStatus:       os,
+				LeakDetected:      leakDetected,
+				PumpOn:            pumpIsOn,
+				FilterStatus:      fs,
 			}
 
 			err = wsjson.Write(ctx, c, status)
@@ -130,6 +133,19 @@ func (h *Handler) monitorStatus(ctx context.Context, c *websocket.Conn) {
 			}
 		}
 	}
+}
+
+func (h *Handler) buildTemperatureStatus(roomTemp float64, waterTemp float64) (TemperatureStatus, error) {
+	h.mctx.Lock()
+	defer h.mctx.Unlock()
+	ts := TemperatureStatus{
+		WaterTemp:             waterTemp,
+		RoomTemp:              roomTemp,
+		MonitoringTemperature: h.mctx.Temperature.TemperatureMonitoring,
+		TargetTemp:            h.mctx.Temperature.TargetTemperature,
+	}
+
+	return ts, nil
 }
 
 func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, waterTemp float64) (PlungeStatus, error) {
@@ -164,9 +180,7 @@ func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, water
 
 	// while the plunge is running, track live average temperatures, otherwise display what's stored in the database
 	if p.Running {
-		h.state.MU.Lock()
 		avgRoomTemp, avgWaterTemp = h.updateAverageTemperatures(roomTemp, waterTemp)
-		h.state.MU.Unlock()
 
 		arg := database.UpdatePlungeAvgTempParams{
 			ID:           p.ID,
@@ -179,20 +193,25 @@ func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, water
 		}
 	} else {
 		// If it's not running, the reset the average temperature tracker
-		h.state.MU.Lock()
-		h.state.WaterTempTotal = 0.0
-		h.state.RoomTempTotal = 0.0
-		h.state.TempReadCount = 0
-		h.state.MU.Unlock()
+		h.mctx.Plunge.Lock()
+		h.mctx.Plunge.WaterTempTotal = 0.0
+		h.mctx.Plunge.RoomTempTotal = 0.0
+		h.mctx.Plunge.TempReadCount = 0
+		h.mctx.Plunge.Unlock()
 	}
+
+	startWaterTemp, err := strconv.ParseFloat(p.StartWaterTemp, 64)
+	startRoomTemp, err := strconv.ParseFloat(p.StartRoomTemp, 64)
+	endWaterTemp, err := strconv.ParseFloat(p.EndWaterTemp, 64)
+	endRoomTemp, err := strconv.ParseFloat(p.EndRoomTemp, 64)
 
 	ps := PlungeStatus{
 		StartTime:        p.StartTime.Time,
-		StartWaterTemp:   p.StartWaterTemp,
-		StartRoomTemp:    p.StartRoomTemp,
+		StartWaterTemp:   startWaterTemp,
+		StartRoomTemp:    startRoomTemp,
 		EndTime:          p.EndTime.Time,
-		EndWaterTemp:     p.EndWaterTemp,
-		EndRoomTemp:      p.EndRoomTemp,
+		EndWaterTemp:     endWaterTemp,
+		EndRoomTemp:      endRoomTemp,
 		Running:          p.Running,
 		ExpectedDuration: int32(duration.Seconds()),
 		Remaining:        remaining.Seconds(),
@@ -203,28 +222,24 @@ func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, water
 	return ps, nil
 }
 
-func (h *Handler) buildOzoneStatus(ctx context.Context) (OzoneStatus, error) {
-	ozone, err := h.store.GetLatestOzoneEntry(ctx)
-	if err != nil {
-		return OzoneStatus{}, err
-	}
+func (h *Handler) buildOzoneStatus() (OzoneStatus, error) {
+	ozone := &h.mctx.Ozone
 
 	var remaining time.Duration
 	var endTime time.Time
-	if ozone.Running {
-		elapsedTime := time.Since(ozone.StartTime.Time)
-		duration := time.Duration(ozone.ExpectedDuration) * time.Minute
+	if h.mctx.Ozone.Running {
+		elapsedTime := time.Since(ozone.StartTime)
+		duration := time.Duration(ozone.Duration) * time.Minute
 		remaining = duration - elapsedTime
-		endTime = ozone.StartTime.Time.Add(duration)
+		endTime = ozone.StartTime.Add(duration)
 	} else {
 		remaining = 0.0
-		endTime = ozone.EndTime.Time
+		endTime = ozone.EndTime
 	}
 
 	os := OzoneStatus{
 		Running:     ozone.Running,
-		Status:      ozone.StatusMessage.String,
-		StartTime:   ozone.StartTime.Time,
+		StartTime:   ozone.StartTime,
 		EndTime:     endTime,
 		SecondsLeft: remaining.Seconds(),
 	}
@@ -249,11 +264,13 @@ func (h *Handler) buildFilterStatus(ctx context.Context) (FilterStatus, error) {
 
 // Update the temperatures
 func (h *Handler) updateAverageTemperatures(roomTemp float64, waterTemp float64) (float64, float64) {
-	h.state.WaterTempTotal += waterTemp
-	h.state.RoomTempTotal += roomTemp
-	h.state.TempReadCount++
-	avgWaterTemp := h.state.WaterTempTotal / float64(h.state.TempReadCount)
-	avgRoomTemp := h.state.RoomTempTotal / float64(h.state.TempReadCount)
+	h.mctx.Plunge.Lock()
+	defer h.mctx.Plunge.Unlock()
+	h.mctx.Plunge.WaterTempTotal += waterTemp
+	h.mctx.Plunge.RoomTempTotal += roomTemp
+	h.mctx.Plunge.TempReadCount++
+	avgWaterTemp := h.mctx.Plunge.WaterTempTotal / float64(h.mctx.Plunge.TempReadCount)
+	avgRoomTemp := h.mctx.Plunge.RoomTempTotal / float64(h.mctx.Plunge.TempReadCount)
 
 	return avgRoomTemp, avgWaterTemp
 }

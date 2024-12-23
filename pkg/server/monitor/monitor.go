@@ -27,11 +27,12 @@ func InitializeMonitorContext(notifier *notify.Notify, store MonitorStore, senso
 		store:             store,
 		sensors:           sensors,
 		monitorCancelFunc: cancel,
-		OzoneCh:           make(chan OzoneTask),
-		NotifyCh:          make(chan NotificationTask),
-		notifier:          notifier,
-		TempMonitorCh:     make(chan TemperatureTask),
 	}
+
+	mctx.Ozone.OzoneCh = make(chan OzoneTask)
+	mctx.Temperature.TempMonitorCh = make(chan TemperatureTask)
+	mctx.Notification.NotifyCh = make(chan NotificationTask)
+	mctx.Notification.notifier = notifier
 
 	mctx.startMonitorRoutines()
 
@@ -70,8 +71,9 @@ func (mctx *MonitorContext) monitorOzone() {
 	defer mctx.wg.Done()
 
 	// start and stop with the ozone off
-	mctx.sensors.TurnOzoneOff()
-	defer mctx.sensors.TurnOzoneOff()
+	defer mctx.turnOzoneGeneratorOff()
+
+	mctx.setInitialOzoneState()
 
 	for {
 		select {
@@ -79,7 +81,7 @@ func (mctx *MonitorContext) monitorOzone() {
 			slog.Debug("monitorOzone: context done")
 			return
 
-		case task, ok := <-mctx.OzoneCh:
+		case task, ok := <-mctx.Ozone.OzoneCh:
 			if !ok {
 				slog.Error("The ozone notification channel was closed")
 				return
@@ -95,9 +97,9 @@ func (mctx *MonitorContext) monitorOzone() {
 				// cancel the ozone generator
 				slog.Debug("OZONEACTION_STOP")
 				mctx.Lock()
-				if mctx.OzoneRunning {
+				if mctx.Ozone.Running {
 					slog.Debug("cancel ozone")
-					mctx.ozoneCancelFunc()
+					mctx.Ozone.ozoneCancelFunc()
 				}
 				mctx.Unlock()
 			}
@@ -105,56 +107,93 @@ func (mctx *MonitorContext) monitorOzone() {
 	}
 }
 
-func (mctx *MonitorContext) startOzoneGenerator(duration int) {
+func (mctx *MonitorContext) setInitialOzoneState() {
+	mctx.Lock()
+	defer mctx.Unlock()
+
+	// make sure we start with the ozone off
+	mctx.turnOzoneGeneratorOff()
+	mctx.Ozone.Running = false
+
+	// see if there was a last run
+	ozone, err := mctx.store.GetLatestOzoneEntry(mctx.ctx)
+	if err != nil {
+		slog.Error("failed to query database for latest ozone entry", "error", err)
+		return
+	}
+
+	// update ozone context with last ozone entry
+	mctx.Ozone.Duration = int(ozone.ExpectedDuration)
+	if ozone.StartTime.Valid {
+		mctx.Ozone.StartTime = ozone.StartTime.Time
+	}
+	if ozone.EndTime.Valid {
+		mctx.Ozone.EndTime = ozone.EndTime.Time
+	}
+}
+
+// startOzoneGenerator will start the ozone generator for a specified duration in minutes
+//
+//	If the generator is already running, the current run will be stopped and a new run started.
+func (mctx *MonitorContext) startOzoneGenerator(duration int) error {
 	slog.Debug(">>startOzoneGenerator")
 	defer slog.Debug("<<startOzoneGenerator")
 
 	mctx.Lock()
 	defer mctx.Unlock()
 
-	// is the ozone generator already running?
-	if mctx.OzoneRunning {
-		slog.Warn("ozone is already running")
-		return
+	// set the start time
+	startTime := time.Now().UTC()
+
+	// add a new database entry for starting the ozone generator
+	err := mctx.startOzoneDatabase(startTime, duration)
+	if err != nil {
+		slog.Error("Failed to update database to start ozone", "error", err)
+		return err
 	}
 
-	startTime := sql.NullTime{
-		Time:  time.Now().UTC(),
-		Valid: true,
+	// start the ozone generator
+	err = mctx.sensors.TurnOzoneOn()
+	if err != nil {
+		message := "Failed to turn the ozone generator on"
+		slog.Error(message, "error", err)
+		mctx.Notification.NotifyCh <- NotificationTask{Message: message}
+		return err
 	}
 
+	// create a context for the ozone goroutine with a hard timeout
+	ozoneCtx, cancel := context.WithTimeout(mctx.ctx, time.Duration(duration)*time.Minute)
+	mctx.Ozone.ozoneCancelFunc = cancel
+	mctx.Ozone.Running = true
+	mctx.Ozone.Duration = duration
+	mctx.Ozone.StartTime = startTime
+
+	go func() {
+		slog.Debug(">>monitor ozoneCancelFunc")
+		defer slog.Debug("<<monitor ozoneCancelFunc")
+		defer mctx.Ozone.ozoneCancelFunc()
+
+		<-ozoneCtx.Done()
+		mctx.stopOzoneGenerator()
+	}()
+
+	mctx.Notification.NotifyCh <- NotificationTask{Message: "Ozone generator was started"}
+
+	return nil
+}
+
+func (mctx *MonitorContext) startOzoneDatabase(startTime time.Time, duration int) error {
 	args := database.StartOzoneGeneratorParams{
-		StartTime:        startTime,
+		StartTime:        sql.NullTime{Time: startTime, Valid: true},
 		ExpectedDuration: int32(duration),
 	}
 
 	_, err := mctx.store.StartOzoneGenerator(mctx.ctx, args)
 	if err != nil {
 		slog.Error("failed to update database with ozone start", "error", err)
-		return
+		return err
 	}
-
-	err = mctx.sensors.TurnOzoneOn()
-	if err != nil {
-		mctx.setOzoneErrorMessage(mctx.ctx, "failed to turn on ozone generator", err)
-		return
-	}
-
-	// create a context for the ozone goroutine with a hard timeout
-	ozoneCtx, cancel := context.WithTimeout(mctx.ctx, time.Duration(duration)*time.Minute)
-	mctx.ozoneCancelFunc = cancel
-	mctx.OzoneRunning = true
-
-	go func() {
-		slog.Debug("Enter goroutine to monitor ozone")
-		defer slog.Debug("Exit goroutine to monitor ozone")
-		defer mctx.ozoneCancelFunc()
-
-		<-ozoneCtx.Done()
-		mctx.stopOzoneGenerator()
-	}()
-
-	mctx.NotifyCh <- NotificationTask{Message: "Ozone generator was started"}
+	return nil
 }
 
 func (mctx *MonitorContext) stopOzoneGenerator() error {
@@ -162,16 +201,35 @@ func (mctx *MonitorContext) stopOzoneGenerator() error {
 	defer slog.Debug("<<stopOzoneGenerator")
 
 	// turn ozone off no matter what
-	err := mctx.sensors.TurnOzoneOff()
+	mctx.turnOzoneGeneratorOff()
+
+	err := mctx.stopOzoneDatabase()
 	if err != nil {
-		mctx.setOzoneErrorMessage(mctx.ctx, "failed to turn off ozone generator", err)
-		return err
+		slog.Error("failed to update database with ozone stop", "error", err)
 	}
 
 	mctx.Lock()
-	mctx.OzoneRunning = false
+	mctx.Ozone.Running = false
+	mctx.Ozone.EndTime = time.Now().UTC()
 	mctx.Unlock()
 
+	mctx.Notification.NotifyCh <- NotificationTask{Message: "Ozone generator was stopped"}
+
+	return nil
+}
+
+func (mctx *MonitorContext) turnOzoneGeneratorOff() {
+	err := mctx.sensors.TurnOzoneOff()
+	if err != nil {
+		message := "Failed to turn off ozone generator"
+		slog.Error(message, "error", err)
+
+		// ALWAYS notify the user that we were unable to turn the ozone generator off
+		mctx.Notification.NotifyCh <- NotificationTask{Message: message}
+	}
+}
+
+func (mctx *MonitorContext) stopOzoneDatabase() error {
 	ozone, err := mctx.store.GetLatestOzoneEntry(mctx.ctx)
 	if err != nil {
 		slog.Error("failed to query database for latest ozone entry", "error", err)
@@ -184,36 +242,6 @@ func (mctx *MonitorContext) stopOzoneGenerator() error {
 		slog.Error("failed to update the database with the ozone stop")
 		return err
 	}
-
-	mctx.NotifyCh <- NotificationTask{Message: "Ozone generator was stopped"}
-
-	return nil
-}
-
-func (mctx *MonitorContext) setOzoneErrorMessage(ctx context.Context, statusMessage string, err error) error {
-	slog.Error(statusMessage, "error", err)
-
-	// TODO: Should we have a message per ozone entry or something more general?
-	ozone, err := mctx.store.GetLatestOzoneEntry(ctx)
-	if err != nil {
-		slog.Error("failed to query database for latest ozone entry", "error", err)
-		return err
-	}
-
-	// Update the ozone status to indicate it was not turned off
-	arg := database.UpdateOzoneEntryStatusParams{
-		ID:            ozone.ID,
-		StatusMessage: sql.NullString{Valid: true, String: statusMessage},
-	}
-
-	_, dbErr := mctx.store.UpdateOzoneEntryStatus(ctx, arg)
-	if dbErr != nil {
-		// we log the database error but we don't return it, we want to know if we didn't stop the ozone generator
-		slog.Error("failed to update ozone status to indicate ozone was not turned off", "error", err)
-		return err
-	}
-
-	mctx.NotifyCh <- NotificationTask{Message: statusMessage}
 
 	return nil
 }
@@ -246,24 +274,22 @@ func (mctx *MonitorContext) monitorTemperatures() {
 			mctx.saveCurrentTemperatures(rt, wt)
 
 			mctx.Lock()
-			mctx.WaterTemperature = wt.TemperatureF
-			mctx.RoomTemperature = rt.TemperatureF
+			mctx.Temperature.WaterTemperature = wt.TemperatureF
+			mctx.Temperature.RoomTemperature = rt.TemperatureF
 			// are we monitoring for a target temperature?
-			if mctx.temperatureMonitoring {
-				lowRange := mctx.TargetTemperature - 0.5
-				highRange := mctx.TargetTemperature + 0.5
+			if mctx.Temperature.TemperatureMonitoring {
+				lowRange := mctx.Temperature.TargetTemperature - 0.5
+				highRange := mctx.Temperature.TargetTemperature + 0.5
 				if wt.TemperatureF >= lowRange && wt.TemperatureF <= highRange {
-					slog.Debug("Temperature in range", "target", mctx.TargetTemperature, "lowRange", lowRange, "highRange", highRange)
+					slog.Debug("Temperature in range", "target", mctx.Temperature.TargetTemperature, "lowRange", lowRange, "highRange", highRange)
 					// notify  the user
-					mctx.NotifyCh <- NotificationTask{Message: fmt.Sprintf("Target temperature %v was reached", mctx.TargetTemperature)}
-					mctx.temperatureMonitoring = false
+					mctx.Notification.NotifyCh <- NotificationTask{Message: fmt.Sprintf("Target temperature %v was reached", mctx.Temperature.TargetTemperature)}
+					mctx.Temperature.TemperatureMonitoring = false
 				}
-
 			}
 			mctx.Unlock()
 
-		case task, ok := <-mctx.TempMonitorCh:
-			slog.Info("Received temperure task")
+		case task, ok := <-mctx.Temperature.TempMonitorCh:
 			if !ok {
 				slog.Error("The temperature notification channel was closed")
 				return
@@ -271,8 +297,8 @@ func (mctx *MonitorContext) monitorTemperatures() {
 
 			slog.Debug("Monitor temperature", "temperature", task.TargetTemperature)
 			mctx.Lock()
-			mctx.TargetTemperature = task.TargetTemperature
-			mctx.temperatureMonitoring = true
+			mctx.Temperature.TargetTemperature = task.TargetTemperature
+			mctx.Temperature.TemperatureMonitoring = true
 			mctx.Unlock()
 		}
 	}
@@ -376,15 +402,15 @@ func (mctx *MonitorContext) monitorNotifications() {
 			slog.Debug("monitorNotifications: context done")
 			return
 
-		case task, ok := <-mctx.NotifyCh:
+		case task, ok := <-mctx.Notification.NotifyCh:
 			if !ok {
 				slog.Error("The notification channel was closed")
 				return
 			}
 
 			// Send the SMS
-			if mctx.notifier != nil {
-				err := mctx.notifier.Send(
+			if mctx.Notification.notifier != nil {
+				err := mctx.Notification.notifier.Send(
 					context.Background(),
 					"Plunger Notification",
 					task.Message,
@@ -427,7 +453,7 @@ func (mctx *MonitorContext) processLeakReading(ctx context.Context, leakDetected
 			}
 		} else {
 			// we think there should be a leak that was cleared but the database already has a cleared
-			slog.Warn("inconsistent database state, we think there should be a leak that we are clearing")
+			slog.Warn("Inconsistent database state, we think there should be a leak that we are clearing")
 		}
 	}
 
