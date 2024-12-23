@@ -54,7 +54,7 @@ func (h *Handler) handerTemperatureNotify(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	h.mctx.TempMonitorCh <- monitor.TemperatureTask{TargetTemperature: tnr.TargetTemperature}
+	h.mctx.Temperature.TempMonitorCh <- monitor.TemperatureTask{TargetTemperature: tnr.TargetTemperature}
 
 	utils.RespondWithNoContent(w, http.StatusCreated)
 }

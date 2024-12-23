@@ -2,7 +2,6 @@ package status
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/KyleBrandon/plunger-server/internal/database"
@@ -13,19 +12,18 @@ import (
 type (
 	OzoneStatus struct {
 		Running     bool      `json:"running"`
-		StartTime   time.Time `json:"start_time"`
-		EndTime     time.Time `json:"end_time"`
-		Status      string    `json:"status"`
+		StartTime   time.Time `json:"start_time,omitempty"`
+		EndTime     time.Time `json:"end_time,omitempty"`
 		SecondsLeft float64   `json:"seconds_left"`
 	}
 
 	PlungeStatus struct {
-		StartTime      time.Time `json:"start_time"`
-		EndTime        time.Time `json:"end_time"`
-		StartWaterTemp string    `json:"start_water_temp"`
-		StartRoomTemp  string    `json:"start_room_temp"`
-		EndWaterTemp   string    `json:"end_water_temp"`
-		EndRoomTemp    string    `json:"end_room_temp"`
+		StartTime      time.Time `json:"start_time,omitempty"`
+		EndTime        time.Time `json:"end_time,omitempty"`
+		StartWaterTemp float64   `json:"start_water_temp"`
+		StartRoomTemp  float64   `json:"start_room_temp"`
+		EndWaterTemp   float64   `json:"end_water_temp"`
+		EndRoomTemp    float64   `json:"end_room_temp"`
 
 		Running          bool    `json:"running"`
 		ExpectedDuration int32   `json:"expected_duration"`
@@ -36,28 +34,27 @@ type (
 	}
 
 	FilterStatus struct {
-		ChangedAt time.Time `json:"changed_at"`
-		RemindAt  time.Time `json:"remind_at"`
+		ChangedAt time.Time `json:"changed_at,omitempty"`
+		RemindAt  time.Time `json:"remind_at,omitempty"`
 		ChangeDue bool      `json:"change_due"`
 	}
 
-	SystemStatus struct {
-		AlertMessages []string     `json:"alert_messages"`
-		ErrorMessages []string     `json:"error_messages"`
-		WaterTemp     float64      `json:"water_temp"`
-		RoomTemp      float64      `json:"room_temp"`
-		LeakDetected  bool         `json:"leak_detected"`
-		PumpOn        bool         `json:"pump_on"`
-		PlungeStatus  PlungeStatus `json:"plunge"`
-		OzoneStatus   OzoneStatus  `json:"ozone"`
-		FilterStatus  FilterStatus `json:"filter"`
+	TemperatureStatus struct {
+		WaterTemp             float64 `json:"water_temp"`
+		RoomTemp              float64 `json:"room_temp"`
+		MonitoringTemperature bool    `json:"monitor_target_temp"`
+		TargetTemp            float64 `json:"target_temp"`
 	}
 
-	PlungeState struct {
-		MU             sync.Mutex
-		WaterTempTotal float64
-		RoomTempTotal  float64
-		TempReadCount  int64
+	SystemStatus struct {
+		AlertMessages     []string          `json:"alert_messages"`
+		ErrorMessages     []string          `json:"error_messages"`
+		LeakDetected      bool              `json:"leak_detected"`
+		PumpOn            bool              `json:"pump_on"`
+		TemperatureStatus TemperatureStatus `json:"temperature"`
+		PlungeStatus      PlungeStatus      `json:"plunge"`
+		OzoneStatus       OzoneStatus       `json:"ozone"`
+		FilterStatus      FilterStatus      `json:"filter"`
 	}
 
 	StatusStore interface {
@@ -72,7 +69,6 @@ type (
 		mctx           *monitor.MonitorContext
 		store          StatusStore
 		sensors        sensor.Sensors
-		state          PlungeState
 		originPatterns []string
 	}
 )

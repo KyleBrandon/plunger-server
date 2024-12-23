@@ -77,7 +77,7 @@ func TestOzoneGet(t *testing.T) {
 		h := NewHandler(&store, &sensors, mctx)
 
 		go func() {
-			task, ok := <-mctx.OzoneCh
+			task, ok := <-mctx.Ozone.OzoneCh
 			if !ok {
 				t.Error("ozone channel was closed")
 			}
@@ -102,7 +102,7 @@ func TestOzoneGet(t *testing.T) {
 		h := NewHandler(&store, &sensors, mctx)
 
 		go func() {
-			task, ok := <-mctx.OzoneCh
+			task, ok := <-mctx.Ozone.OzoneCh
 			if !ok {
 				t.Error("ozone channel was closed")
 			}
