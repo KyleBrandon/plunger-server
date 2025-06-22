@@ -323,7 +323,6 @@ func (mctx *MonitorContext) monitorLeaks() {
 		_, err := mctx.store.CreateLeakDetected(mctx.ctx, time.Now().UTC())
 		if err != nil {
 			slog.Error("failed to mctx.store leak detection in database", "error", err)
-			// TODO: we should have alternative means of reporting this
 		}
 	}
 
@@ -353,12 +352,13 @@ func (mctx *MonitorContext) monitorLeaks() {
 			}
 
 			// if a leak was detected, then turn the pump off
-			// TODO: this should be an event that we have listeners on
 			if currentLeakReading {
+				mctx.NotifyCh <- NotificationTask{Message: "Leak detected!! Turning off pump."}
 				err = mctx.sensors.TurnPumpOff()
 				if err != nil {
 					// TODO: notify the user that we could not turn the pump off
 					slog.Error("failed to turn pump off while leak detected", "error", err)
+					mctx.NotifyCh <- NotificationTask{Message: "Leak detected!! Failed to turn off pump."}
 				}
 			}
 		}

@@ -15,7 +15,12 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
-func NewHandler(mctx *monitor.MonitorContext, store StatusStore, sensors sensor.Sensors, originPatterns []string) *Handler {
+func NewHandler(
+	mctx *monitor.MonitorContext,
+	store StatusStore,
+	sensors sensor.Sensors,
+	originPatterns []string,
+) *Handler {
 	h := Handler{
 		mctx,
 		store,
@@ -132,7 +137,11 @@ func (h *Handler) monitorStatus(ctx context.Context, c *websocket.Conn) {
 	}
 }
 
-func (h *Handler) buildPlungeStatus(ctx context.Context, roomTemp float64, waterTemp float64) (PlungeStatus, error) {
+func (h *Handler) buildPlungeStatus(
+	ctx context.Context,
+	roomTemp float64,
+	waterTemp float64,
+) (PlungeStatus, error) {
 	p, err := h.store.GetLatestPlunge(ctx)
 	if err != nil {
 		// failed to read the plunge status.
@@ -248,7 +257,10 @@ func (h *Handler) buildFilterStatus(ctx context.Context) (FilterStatus, error) {
 }
 
 // Update the temperatures
-func (h *Handler) updateAverageTemperatures(roomTemp float64, waterTemp float64) (float64, float64) {
+func (h *Handler) updateAverageTemperatures(
+	roomTemp float64,
+	waterTemp float64,
+) (float64, float64) {
 	h.state.WaterTempTotal += waterTemp
 	h.state.RoomTempTotal += roomTemp
 	h.state.TempReadCount++

@@ -61,8 +61,18 @@ type ServerConfig struct {
 // init will read and initialize the global command line variables
 func init() {
 	// initialize the mock sensor commandline flag
-	flag.BoolVar(&cmdLineFlagMockSensor, "use_mock_sensor", false, "Indicate if we should use a mock sensor for the server instance.")
-	flag.StringVar(&cmdLineFlagLogLevel, "log_level", config.DefaultLogLevel.String(), "The log level to start the server at")
+	flag.BoolVar(
+		&cmdLineFlagMockSensor,
+		"use_mock_sensor",
+		false,
+		"Indicate if we should use a mock sensor for the server instance.",
+	)
+	flag.StringVar(
+		&cmdLineFlagLogLevel,
+		"log_level",
+		config.DefaultLogLevel.String(),
+		"The log level to start the server at",
+	)
 }
 
 // InitializeServer to start working
@@ -104,7 +114,12 @@ func InitializeServer() error {
 	plungesHandler := plunges.NewHandler(config.Queries, config.Sensors)
 	plungesHandler.RegisterRoutes(config.mux)
 
-	statusHandler := status.NewHandler(config.mctx, config.Queries, config.Sensors, config.OriginPatterns)
+	statusHandler := status.NewHandler(
+		config.mctx,
+		config.Queries,
+		config.Sensors,
+		config.OriginPatterns,
+	)
 	statusHandler.RegisterRoutes(config.mux)
 
 	filterHandler := filters.NewHandler(config.Queries)
@@ -239,7 +254,13 @@ func (sc *ServerConfig) configureLogger() {
 	// parse the log level from any passed in command line flag
 	level, err := utils.ParseLogLevel(cmdLineFlagLogLevel)
 	if err != nil {
-		slog.Error("Failed to parse the log level, setting to DefaultLogLevel", "error", err, "log_level", cmdLineFlagLogLevel)
+		slog.Error(
+			"Failed to parse the log level, setting to DefaultLogLevel",
+			"error",
+			err,
+			"log_level",
+			cmdLineFlagLogLevel,
+		)
 		level = config.DefaultLogLevel
 	}
 
