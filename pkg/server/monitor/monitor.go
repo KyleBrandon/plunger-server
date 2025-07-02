@@ -318,6 +318,8 @@ func (mctx *MonitorContext) monitorLeaks() {
 		slog.Warn("failed to read sensor to determine if a leak is present", "error", err)
 	}
 
+	notifyLeakDetected := true
+
 	// if there is a leak present at start create a leak entry
 	if prevLeakReading {
 		_, err := mctx.store.CreateLeakDetected(mctx.ctx, time.Now().UTC())
@@ -353,13 +355,19 @@ func (mctx *MonitorContext) monitorLeaks() {
 
 			// if a leak was detected, then turn the pump off
 			if currentLeakReading {
-				mctx.NotifyCh <- NotificationTask{Message: "Leak detected!! Turning off pump."}
+				if notifyLeakDetected {
+					mctx.NotifyCh <- NotificationTask{Message: "Leak detected!! Turning off pump."}
+					notifyLeakDetected = false
+				}
+
 				err = mctx.sensors.TurnPumpOff()
 				if err != nil {
-					// TODO: notify the user that we could not turn the pump off
 					slog.Error("failed to turn pump off while leak detected", "error", err)
 					mctx.NotifyCh <- NotificationTask{Message: "Leak detected!! Failed to turn off pump."}
 				}
+			} else {
+				// make sure to notify if a leak is detected
+				notifyLeakDetected = true
 			}
 		}
 	}
